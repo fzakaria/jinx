@@ -16,7 +16,7 @@ boots in the next tab.
 
 ## The parity audit as a site (built)
 
-The whole-nixpkgs run ([verification.md](./verification.md)) says, for
+The whole-nixpkgs run ([verification.md](../docs/verification.md)) says, for
 each attribute, whether jinx agrees with Nix. The parity page has every
 attribute of every run: counts by system and by family, the causes
 behind the failures, and a search over the 231,777 attribute paths.
@@ -26,7 +26,7 @@ The same page over revisions is the project's progress chart.
 
 [fzakaria/jinx-nixpkgs](https://github.com/fzakaria/jinx-nixpkgs) holds
 the compiled tree, one commit per tracked nixpkgs revision, each with
-its parity report ([tracking-nixpkgs.md](./tracking-nixpkgs.md)).
+its parity report ([tracking-nixpkgs.md](../docs/tracking-nixpkgs.md)).
 
 ## Types (built)
 

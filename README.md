@@ -45,15 +45,14 @@ $ nix-instantiate --eval --strict hello.nix
 { drv = "/nix/store/j8q5j0x495vfrxgha5m6q40yjdi59334-hello-2.12.2.drv"; out = "/nix/store/18bbdvag5v2f3d4y37pdbkzvh7s71cw4-hello-2.12.2"; }
 ```
 
-**Documentation:** [Design](./docs/design.md) ·
+**Documentation:** [Usage](./docs/usage.md) ·
+[Design](./docs/design.md) ·
 [Semantics](./docs/semantics.md) ·
 [Verification](./docs/verification.md) ·
 [Performance](./docs/performance.md) ·
 [Constraints](./docs/constraints.md) ·
 [Comparisons](./docs/comparisons.md) ·
-[Tracking nixpkgs](./docs/tracking-nixpkgs.md) ·
-[Ideas](./docs/ideas.md) ·
-[Roadmap](./docs/roadmap.md)
+[The compiled nixpkgs](./docs/tracking-nixpkgs.md)
 
 ## Status
 

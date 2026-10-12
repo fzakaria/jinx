@@ -67,17 +67,12 @@ iteration costs minutes rather than the full run. The README's status
 block reports the latest run, and the site's parity page has every
 attribute of it.
 
-The first full run, nixpkgs 6510408d on leviathan with 32 workers:
-nix-eval-jobs took 26 minutes and jinx 14 for 231,777 attributes. The
-first comparison found 228,492 identical drvPaths and seven causes
-behind the 7,500 mismatches: a `constructor` key read from
-Object.prototype, the coercion of `__toString` in toJSON, Nix's base64
-decoder ignoring text after its padding, `dirOf "/"`, the indentation
-rule around escapes in `''` strings, `unsafeGetAttrPos` (the stdenv
-reads it on aarch64-darwin), and one package embedding
-`getEnv "SHELL"`, which needs both evaluators to see the same
-environment. After the fixes every attribute agrees: 229,063 identical
-drvPaths and 2,714 attributes that fail on both sides.
+The run on nixpkgs 6510408d found seven causes behind 7,500
+mismatches: a `constructor` key read from Object.prototype, the
+coercion of `__toString` in toJSON, Nix's base64 decoder ignoring text
+after its padding, `dirOf "/"`, the indentation rule around escapes in
+`''` strings, `unsafeGetAttrPos`, and a package embedding
+`getEnv "SHELL"`. After the fixes every attribute agrees.
 
 ## What the bar does not cover
 

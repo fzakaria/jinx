@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the jinx-nixpkgs tree: nixpkgs at one revision, compiled with the
 # runtime vendored in, plus the metadata a consumer needs to pair it with
-# the source tree (docs/tracking-nixpkgs.md).
+# the source tree (notes/publishing.md).
 #
 #   tools/publish-nixpkgs.sh <rev> <out-dir> [--parity <compare-dir>]
 #

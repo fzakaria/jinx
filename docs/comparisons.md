@@ -1,7 +1,6 @@
 # Comparisons
 
 Where jinx sits among the other implementations of the Nix language.
-Surveyed on 2026-10-11; dates are from the projects' own repositories.
 
 | Project          | Kind                     | Language   | Checks drvPaths against Nix                         |
 | ---------------- | ------------------------ | ---------- | --------------------------------------------------- |
@@ -19,8 +18,8 @@ produces the value when run.
 ## fix
 
 [fix] evaluates nixpkgs' `ci/eval/outpaths.nix` with itself and with a
-reference Nix, and as of its 0.3.0 changelog (2026-08) every one of
-80,586 attributes has an identical drvPath, including agreement on
+reference Nix, and as of its 0.3.0 release every one of 80,586 attributes has an
+identical drvPath, including agreement on
 which attributes fail. It is fast: a minimal NixOS closure in 0.54 s
 against Nix's 2.25 s on the same machine, and the full nixpkgs universe
 in about 52 s and 34 GB with 32 threads, through a parallel VM with
@@ -48,9 +47,8 @@ tree-walker written for incremental evaluation inside an editor, rated
 5% complete by its author. [nix2c] by the same author is a Nix-to-C
 transpiler labelled a failed experiment, on the argument that compiling
 a dynamic language still pays runtime type checks and still
-re-evaluates everything. The type checks do stay. A compiled module
-graph is, though, the structure incremental evaluation needs
-([ideas.md](./ideas.md)).
+re-evaluates everything. The type checks do stay; a compiled module
+graph is, though, what incremental evaluation needs.
 
 In the other direction, [NiJS] (2013) is a JavaScript DSL that writes
 Nix, and [PureNix] compiles PureScript to Nix. Nickel's Nix import
@@ -59,8 +57,8 @@ Nix-to-TypeScript compiler existed before jinx.
 
 ## Where jinx differs
 
-- The output is a program. Everything in [ideas.md](./ideas.md)
-  follows from that.
+- The output is a program: a debugger, a profiler, a bundler and a
+  browser apply to it.
 - No native code. The compiler and runtime are TypeScript with no
   dependencies; the only binary involved is Node, or a browser. fix
   needs Zig and a Nix daemon; snix is Rust.

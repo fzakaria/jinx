@@ -78,5 +78,3 @@ and bytes fetched so far.
   the language, as implemented
 - [Verification](https://github.com/fzakaria/jinx/blob/main/docs/verification.md):
   the conformance suite and the whole-nixpkgs drvPath diff
-- [Ideas](https://github.com/fzakaria/jinx/blob/main/docs/ideas.md):
-  what a TypeScript nixpkgs makes possible

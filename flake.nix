@@ -11,7 +11,7 @@
     };
 
     # nixpkgs compiled to TypeScript, for the site's nixpkgs page served
-    # locally (docs/tracking-nixpkgs.md). Its .jinx/config.json names the
+    # locally (notes/publishing.md). Its .jinx/config.json names the
     # nixpkgs revision it was compiled from.
     jinx-nixpkgs = {
       url = "github:fzakaria/jinx-nixpkgs";

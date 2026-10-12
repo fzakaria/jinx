@@ -241,9 +241,7 @@ until read.
 
 Nothing changes underneath: the same runtime, the same values, the same
 derivation hashing. A derivation built from TypeScript has the drvPath
-Nix would compute for the same expression. A second emitter that
-produces this style from Nix, with static types inferred from `lib`'s
-documented signatures, is on the [ideas](./ideas.md) list.
+Nix would compute for the same expression.
 
 ## Performance model
 
@@ -291,4 +289,4 @@ its two panes.
 ## Not here yet
 
 `scopedImport`; content-addressed and impure derivations; the
-strictness analysis above. [roadmap.md](./roadmap.md) orders them.
+strictness analysis above.

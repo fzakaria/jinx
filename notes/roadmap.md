@@ -4,7 +4,7 @@ In order. Each step has a test that says when it is done.
 
 1. Whole-nixpkgs parity. Done on nixpkgs 6510408d: every attribute of
    `ci/eval/outpaths.nix` on three systems identical to nix-eval-jobs,
-   including which ones fail ([verification.md](./verification.md)).
+   including which ones fail ([verification.md](../docs/verification.md)).
    Stays done: every tracked revision is a rerun.
 2. nix-conformance. 1,108 of 1,305 cases pass, every `drv/` and `nar/`
    case among them. The remaining `lang/` cases are regex captures and
@@ -16,8 +16,8 @@ In order. Each step has a test that says when it is done.
    NixOS system closure, which evaluates to Nix's drvPath already.
 4. Tracking. The `jinx-nixpkgs` repository exists with the first
    revision. The update workflow is manual until leviathan is a runner
-   ([tracking-nixpkgs.md](./tracking-nixpkgs.md)).
-5. Performance. Measured ([performance.md](./performance.md)): 2.6x to
+   ([tracking-nixpkgs.md](../docs/tracking-nixpkgs.md)).
+5. Performance. Measured ([performance.md](../docs/performance.md)): 2.6x to
    5.4x slower than Nix per attribute. Next: strictness analysis in the
    emitter, then a startup snapshot of the evaluated fixpoint. The
    target is a full nixpkgs evaluation no slower than Nix on the same

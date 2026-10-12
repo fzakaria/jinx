@@ -1,10 +1,9 @@
 # Performance
 
-How fast jinx evaluates nixpkgs against Nix on the same machine and the
-same nixpkgs. The numbers are one run of [tools/bench.ts](../tools/bench.ts)
-on 2026-10-12; [jinx.dev/bench](https://jinx.dev/bench/) draws every run
-from [site/bench/history.json](../site/bench/history.json). The design
-behind the numbers is the performance model in
+How fast jinx evaluates nixpkgs against Nix on the same machine and
+the same nixpkgs. The numbers are one run of
+[tools/bench.ts](../tools/bench.ts); the [benchmark page](../bench/)
+draws every run. The design behind the numbers is in
 [design.md](./design.md#performance-model).
 
 ## What is measured
@@ -77,18 +76,6 @@ object, and a third of the time is the garbage collector.
 Node runs the TypeScript directly, stripping types as each module
 loads; a sixth of a cold firefox run is that stripping. A tree
 published as JavaScript, or a V8 code cache, would remove it.
-
-## What changed the numbers
-
-- Layered attribute sets (`//` on a large set makes a two-layer view
-  instead of a copy): the sample went from 60 s to 27 s.
-- Attribute positions as a symbol property instead of a prototype per
-  set: firefox from 20.6 s and 1.43 GB back to 13.7 s and 977 MB on the
-  nixpkgs of the time. A prototype per set gave V8 a hidden class per
-  set and kept both operands of every merge alive.
-- `mapAttrs` as a lazy view: 2.30 GB peak from 2.38 on firefox. Most
-  mapped sets are enumerated by a later `//` and flattened, which is
-  where the rest of the memory stays.
 
 ## Where the time goes
 
