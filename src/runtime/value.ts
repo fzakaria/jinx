@@ -492,33 +492,40 @@ export class Path {
 
 // A suspended computation with its result memoised. Forcing a thunk that
 // is already being forced is Nix's "infinite recursion".
+// A thunk being forced has BLACKHOLE in place of its closure, which is
+// how forcing it again from inside its own evaluation is detected; two
+// fields per thunk, and there are millions.
+const BLACKHOLE = (): Lazy => {
+  throw new NixError("infinite recursion encountered");
+};
+
 export class Thunk {
   private fn: (() => Lazy) | null;
   private result: Value | undefined = undefined;
-  private evaluating = false;
 
   constructor(fn: () => Lazy) {
     this.fn = fn;
   }
 
   force(): Value {
-    if (this.fn === null) {
+    const fn = this.fn;
+    if (fn === null) {
       return this.result as Value;
     }
-    if (this.evaluating) {
-      throw new NixError("infinite recursion encountered");
-    }
-    this.evaluating = true;
+    this.fn = BLACKHOLE;
     try {
-      let v = this.fn();
+      let v = fn();
       while (v instanceof Thunk) {
         v = v.force();
       }
       this.result = v;
       this.fn = null;
       return v;
-    } finally {
-      this.evaluating = false;
+    } catch (e) {
+      // Nix forces a thunk again after an error, so the closure comes
+      // back; a tryEval that caught the error may force it once more.
+      this.fn = fn;
+      throw e;
     }
   }
 
