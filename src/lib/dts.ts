@@ -118,6 +118,26 @@ export function jsDoc(lines: readonly string[], indent: string): string {
   return `${indent}/**\n${body}\n${indent} */\n`;
 }
 
+// The doc line pointing a package at its source. `position` is what
+// nixpkgs stores in `meta.position`, `<file>:<line>`, with the file
+// under `root`. The link is a file URL with the line in its fragment,
+// which VS Code opens at that line from a hover; the link text is the
+// path relative to the root.
+const POSITION_RE = /^(.*):(\d+)$/;
+export function definedAt(position: string, root: string): string[] {
+  const m = POSITION_RE.exec(position);
+  if (m === null) {
+    return [];
+  }
+  const [, file, line] = m as unknown as [string, string, string];
+  const prefix = root.endsWith("/") ? root : `${root}/`;
+  if (!file.startsWith(prefix)) {
+    return [];
+  }
+  const rel = file.slice(prefix.length);
+  return [`Defined at {@link file://${file}#L${line} ${rel}:${line}}`];
+}
+
 // ---- doc comments in lib's sources -------------------------------------
 
 export interface DocEntry {

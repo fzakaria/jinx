@@ -4,16 +4,24 @@
 //
 //   node --stack-size=1000000 --max-old-space-size=32000 \
 //     tools/gen-nixpkgs-dts.ts <nixpkgs> [--out work/nixpkgs.d.ts] \
-//     [--depth 2] [--system x86_64-linux]
+//     [--depth 2] [--system x86_64-linux] [--positions]
 //
 // Every top-level attribute is forced and classified: a derivation
 // becomes `Derivation`, a package set a nested interface down to --depth,
 // a function a signature from its formals. `lib` gets its documented
 // signatures, translated from the `# Type` sections in <nixpkgs>/lib/*.nix.
 // An attribute that fails to evaluate becomes `unknown` with the error in
-// a doc comment.
+// a doc comment. `--positions` adds a doc line to every derivation
+// linking its meta.position, which VS Code opens from the hover; the
+// file grows about sixfold with it (37 MB against 6 MB for nixpkgs).
 
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { DEFAULT_CACHE, evaluateFile, setup } from "../src/cli/evaluate.ts";
 import { app } from "../src/runtime/ops.ts";
@@ -38,6 +46,7 @@ import {
   type TsSignature,
   ATTRSET,
   DERIVATION,
+  definedAt,
   extractDocs,
   jsDoc,
   quoteKey,
@@ -52,14 +61,16 @@ import {
 const DEFAULT_OUT = resolve(import.meta.dirname, "..", "work", "nixpkgs.d.ts");
 const DEFAULT_DEPTH = 2;
 const DEFAULT_SYSTEM = "x86_64-linux";
+const POSITIONS_FLAG = "--positions";
 const USAGE =
-  "usage: gen-nixpkgs-dts.ts <nixpkgs> [--out nixpkgs.d.ts] [--depth 2] [--system x86_64-linux]";
+  "usage: gen-nixpkgs-dts.ts <nixpkgs> [--out nixpkgs.d.ts] [--depth 2] [--system x86_64-linux] [--positions]";
 
 interface Options {
   readonly nixpkgs: string;
   readonly out: string;
   readonly depth: number;
   readonly system: string;
+  readonly positions: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Options {
@@ -67,6 +78,7 @@ function parseArgs(argv: readonly string[]): Options {
   let out = DEFAULT_OUT;
   let depth = DEFAULT_DEPTH;
   let system = DEFAULT_SYSTEM;
+  let positions = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     const value = (): string => {
@@ -85,6 +97,8 @@ function parseArgs(argv: readonly string[]): Options {
       }
     } else if (a === "--system") {
       system = value();
+    } else if (a === POSITIONS_FLAG) {
+      positions = true;
     } else if (a.startsWith("--")) {
       throw new Error(`unknown option ${a}\n${USAGE}`);
     } else if (nixpkgs === undefined) {
@@ -96,7 +110,7 @@ function parseArgs(argv: readonly string[]): Options {
   if (nixpkgs === undefined) {
     throw new Error(USAGE);
   }
-  return { nixpkgs, out, depth, system };
+  return { nixpkgs, out, depth, system, positions };
 }
 
 // ---- what gets special treatment ---------------------------------------
@@ -202,6 +216,8 @@ const DEPRECATION_RE = /renamed|removed|deprecated|aliased|replaced/i;
 
 const DERIVATION_TYPE = "derivation";
 const RECURSE = "recurseForDerivations";
+const META = "meta";
+const POSITION = "position";
 const FUNCTOR = "__functor";
 const FUNCTION_ARGS = "__functionArgs";
 
@@ -396,6 +412,8 @@ function loadLibDocs(nixpkgs: string): LibDocs {
 
 interface Stats {
   derivation: number;
+  // Derivations whose meta.position gave a source line.
+  positioned: number;
   derivationExpanded: number;
   setExpanded: number;
   setOpaque: number;
@@ -419,6 +437,7 @@ interface Stats {
 function newStats(): Stats {
   return {
     derivation: 0,
+    positioned: 0,
     derivationExpanded: 0,
     setExpanded: 0,
     setOpaque: 0,
@@ -471,10 +490,14 @@ class Generator {
   ]);
   readonly stats = newStats();
   private members = 0;
+  // The nixpkgs root the positions in meta are made relative to, or
+  // null when derivations get no position line.
+  private readonly root: string | null;
 
-  constructor(depth: number, docs: LibDocs) {
+  constructor(depth: number, docs: LibDocs, root: string | null) {
     this.depth = depth;
     this.docs = docs;
+    this.root = root;
   }
 
   // The declaration file for a package set.
@@ -863,7 +886,7 @@ class Generator {
         always || (level < this.depth && WELL_KNOWN_SETS.has(dotted));
       if (!expand) {
         this.stats.derivation++;
-        return this.property(key, DERIVATION, []);
+        return this.property(key, DERIVATION, this.sourceOf(v));
       }
       this.stats.derivationExpanded++;
       return this.property(key, this.interfaceFor(v, path, true), []);
@@ -884,6 +907,32 @@ class Generator {
     }
     this.stats.setOpaque++;
     return this.property(key, ATTRSET, []);
+  }
+
+  // Where a derivation is defined, from its meta.position, as a doc line.
+  // Forcing meta runs nixpkgs' meta checks, so an error means no line.
+  private sourceOf(drv: Attrs): string[] {
+    if (this.root === null) {
+      return [];
+    }
+    try {
+      const meta = force(getAttr(drv, META) as Lazy);
+      if (!isAttrs(meta)) {
+        return [];
+      }
+      const position = getAttr(meta, POSITION);
+      if (position === undefined) {
+        return [];
+      }
+      const p = force(position);
+      if (typeof p !== "string") {
+        return [];
+      }
+      this.stats.positioned++;
+      return definedAt(p, this.root);
+    } catch {
+      return [];
+    }
   }
 
   // Whether a set is listed: it has recurseForDerivations, is well known,
@@ -938,7 +987,11 @@ function main(): void {
     `${docs.byName.size} documented lib names from ${docs.byFile.size} files in ${formatMs(t2 - t1)}`,
   );
 
-  const gen = new Generator(opts.depth, docs);
+  const gen = new Generator(
+    opts.depth,
+    docs,
+    opts.positions ? realpathSync(opts.nixpkgs) : null,
+  );
   const text = gen.generate(pkgs);
   const t3 = performance.now();
   console.error(`classified in ${formatMs(t3 - t2)}`);

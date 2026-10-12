@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   type TsSignature,
+  definedAt,
   extractDocs,
   jsDoc,
   paramName,
@@ -444,4 +445,20 @@ test("extractDocs output translates", () => {
     renderFunctionType(translate(shellVars!.signature as string)),
     "(arg1: { [key: string]: string }) => string",
   );
+});
+
+// Checks the doc line that points a package at its source: the position
+// nixpkgs records in meta, made relative to the nixpkgs root, as a link
+// an editor opens at the line. A position outside the root, or one with
+// no line, is left out.
+test("definedAt links a meta.position to its file and line", () => {
+  const root = "/nix/store/abc-source";
+  assert.deepEqual(
+    definedAt(`${root}/pkgs/by-name/he/hello/package.nix:12`, root),
+    [
+      "Defined at {@link file:///nix/store/abc-source/pkgs/by-name/he/hello/package.nix#L12 pkgs/by-name/he/hello/package.nix:12}",
+    ],
+  );
+  assert.deepEqual(definedAt("/elsewhere/default.nix:3", root), []);
+  assert.deepEqual(definedAt(`${root}/pkgs/x.nix`, root), []);
 });
