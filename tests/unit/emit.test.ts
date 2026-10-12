@@ -467,7 +467,10 @@ test("emitted code shape", () => {
   assert.match(emitted("a: with a; b"), /nix\.lookup\(w, "b"\)/);
   assert.match(emitted("a: a ? b"), /nix\.has\(a, "b"\)/);
   assert.match(emitted("let class = 1; in class"), /const class\$ = 1n;/);
-  assert.match(emitted('{ "a.b" = 1; }'), /\[nix\.POS\]: pos\$\d+, "a\.b": 1n \}/);
+  assert.match(
+    emitted('{ "a.b" = 1; }'),
+    /\[nix\.POS\]: pos\$\d+, "a\.b": 1n \}/,
+  );
   assert.match(
     emitted("x: { a, b ? 1, ... }: a"),
     /const formals\$1 = \{ args: \{ a: false, b: true \}, ellipsis: true \};/,

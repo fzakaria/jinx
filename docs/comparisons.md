@@ -3,14 +3,14 @@
 Where jinx sits among the other implementations of the Nix language.
 Surveyed on 2026-10-11; dates are from the projects' own repositories.
 
-| Project          | Kind                     | Language   | Checks drvPaths against Nix                           |
-| ---------------- | ------------------------ | ---------- | ----------------------------------------------------- |
-| jinx             | compiler to TypeScript   | TypeScript | all of nixpkgs on three systems: 231,777 of 231,777   |
-| [fix]            | bytecode VM              | Zig        | all of nixpkgs on one system: 80,586 of 80,586        |
-| [snix] (ex tvix) | bytecode VM              | Rust       | stdenv, hello, firefox, cross hello in CI             |
-| [hnix]           | tree-walking interpreter | Haskell    | no claim                                              |
-| [nix-eval-js]    | tree-walking interpreter | JavaScript | no; self-rated 5% complete                            |
-| Nix, Lix         | tree-walking interpreter | C++        | the reference                                         |
+| Project          | Kind                     | Language   | Checks drvPaths against Nix                         |
+| ---------------- | ------------------------ | ---------- | --------------------------------------------------- |
+| jinx             | compiler to TypeScript   | TypeScript | all of nixpkgs on three systems: 231,777 of 231,777 |
+| [fix]            | bytecode VM              | Zig        | all of nixpkgs on one system: 80,586 of 80,586      |
+| [snix] (ex tvix) | bytecode VM              | Rust       | stdenv, hello, firefox, cross hello in CI           |
+| [hnix]           | tree-walking interpreter | Haskell    | no claim                                            |
+| [nix-eval-js]    | tree-walking interpreter | JavaScript | no; self-rated 5% complete                          |
+| Nix, Lix         | tree-walking interpreter | C++        | the reference                                       |
 
 Every project in the table except jinx is an interpreter: Nix source
 in, value out. jinx is a compiler: Nix source in, a program out, which
