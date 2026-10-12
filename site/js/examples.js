@@ -167,20 +167,15 @@ export default { drvPath: greet.drvPath, outPath: greet.outPath };
     ts: `// Three derivations, each reading the previous one's output. The
 // previous derivation is passed as an attribute, which is how its
 // store path becomes an input: inside the builder it is $previous.
-import { nix } from "jinx";
+import { type Derivation, nix } from "jinx";
 
 const STEPS = ["fetch", "build", "install"];
 const SYSTEM = "x86_64-linux";
 
-interface Drv {
-  name: string;
-  drvPath: string;
-}
-
-const steps: Drv[] = [];
-let previous: Drv | null = null;
+const steps: Derivation[] = [];
+let previous: Derivation | null = null;
 for (const name of STEPS) {
-  const drv: Drv = nix.derivation({
+  const drv: Derivation = nix.derivation({
     name,
     system: SYSTEM,
     builder: "/bin/sh",

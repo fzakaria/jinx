@@ -32,6 +32,21 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type View = any;
 
+// A viewed derivation: what `derivation` and `stdenv.mkDerivation`
+// return, with the attributes every derivation has; the rest of the
+// set is reachable as on any view.
+export interface Derivation {
+  readonly type: "derivation";
+  readonly name: string;
+  readonly drvPath: string;
+  readonly outPath: string;
+  readonly outputName: string;
+  readonly outputs: readonly string[];
+  readonly system: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly [attr: string]: any;
+}
+
 const RAW = Symbol("jinx.raw");
 
 // The Nix value behind a view, or the value itself if it is not a view.

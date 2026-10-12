@@ -294,7 +294,8 @@ function tsEditMode() {
 
 function setTsOnly(flag) {
   tsOnly = flag;
-  $("nix-note").hidden = !flag;
+  // The Nix pane goes away and the two others share the width.
+  $("panes").classList.toggle("ts-only", flag);
   $("nix-editor").classList.toggle("disabled", flag);
   nixEditor.setReadOnly(flag);
   $("ts-edit").checked = flag;

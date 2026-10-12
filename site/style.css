@@ -172,8 +172,16 @@ code {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
+/* A snippet written in TypeScript has no Nix pane. */
+#panes.ts-only {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+#panes.ts-only #pane-nix {
+  display: none;
+}
 @media (max-width: 70rem) {
-  #panes {
+  #panes,
+  #panes.ts-only {
     grid-template-columns: 1fr;
   }
 }
@@ -210,10 +218,6 @@ code {
 }
 .editor.disabled {
   opacity: 0.5;
-}
-.pane-note {
-  margin: 0 0 0.4rem;
-  font-size: 13px;
 }
 /* The textarea fallback, when the CDN is out of reach. */
 .fallback-editor {
