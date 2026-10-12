@@ -1,7 +1,7 @@
 // Evaluate a Nix file through the compiled tree. Used by `jinx eval`, the
 // corpus runner and the conformance adapter.
 
-import { createRequire } from "node:module";
+import { createRequire, enableCompileCache } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import {
   compileFile,
@@ -32,14 +32,24 @@ export interface EvalOptions {
   readonly trees?: readonly string[];
 }
 
-export const DEFAULT_CACHE = resolve(
+const CACHE_ROOT = resolve(
   process.env["XDG_CACHE_HOME"] ?? `${process.env["HOME"] ?? "/tmp"}/.cache`,
   "jinx",
-  "fs",
 );
+export const DEFAULT_CACHE = join(CACHE_ROOT, "fs");
+
+// V8's compiled code for every module loaded, kept across runs by node's
+// compile cache: a warm evaluation otherwise strips and parses every
+// compiled module again, which was four tenths of firefox.drvPath.
+// Called before any compiled module loads; the compiler's own modules
+// are already in, and are few.
+export function enableCodeCache(): void {
+  enableCompileCache(join(CACHE_ROOT, "compile-cache"));
+}
 
 // Set up on-demand compilation into the cache tree.
 export function setup(opts: EvalOptions): void {
+  enableCodeCache();
   for (const dir of opts.trees ?? []) {
     const out = resolve(dir);
     const cfg = JSON.parse(
