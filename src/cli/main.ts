@@ -18,6 +18,7 @@ import { runAdapter } from "./adapter.ts";
 import { instantiate } from "./instantiate.ts";
 import { defaultWorkers, evalJobs } from "./eval-jobs.ts";
 import { toJson } from "../runtime/json.ts";
+import { settings } from "../runtime/builtins.ts";
 import { printValue } from "../runtime/print.ts";
 import { copyPathToStore } from "../runtime/store.ts";
 import {
@@ -192,6 +193,7 @@ function main(argv: string[]): number {
           typeof flags.get("only") === "string"
             ? onlyAttrs(flags.get("only") as string)
             : null,
+        impure: flags.has("impure"),
       });
     }
     default:
@@ -249,6 +251,7 @@ function evalCmd(
   const attr = flags.get("attr");
   const attrPath =
     typeof attr === "string" && attr !== "" ? attr.split(".") : [];
+  settings.impure = flags.has("impure");
   try {
     const v = evaluateFile(file, attrPath, null);
     if (flags.has("json")) {

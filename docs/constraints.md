@@ -16,7 +16,11 @@ stricter:
 - No fetching. `fetchTarball`, `fetchGit`, `fetchTree`, `fetchurl` (the
   builtin, not the nixpkgs function), `getFlake` are errors. nixpkgs
   itself does not need them; its fetchers are derivations.
-- No environment. `getEnv` is `""`, `currentTime` is an error,
+- No environment unless asked. `getEnv` is `""`, as under `--pure-eval`;
+  `jinx eval --impure` and `eval-jobs --impure` read the process
+  environment the way nix-instantiate does by default, which the parity
+  run needs because a few packages (drbd) embed `getEnv "SHELL"` in
+  their derivations. `currentTime` is an error,
   `currentSystem` is the `--system` jinx was given, `nixPath` is empty
   except for `<nix/...>`, which resolves to the corepkgs Nix embeds
   (`fetchurl.nix`, needed by the stdenv bootstrap).

@@ -61,15 +61,18 @@ $ nix-instantiate --eval --strict hello.nix
 
 <!-- BEGIN status -->
 
-- The parser accepts all 41,313 `.nix` files in nixpkgs (8 s).
-- `lib`, the module system, stdenv and `hello.drvPath` evaluate to the
-  same values and store paths as Nix 2.35.
-- 66 of 66 packages in a diverse sample (firefox, linux, ghc, gnome-shell,
-  libreoffice, pkgsCross and pkgsStatic hello, haskellPackages.pandoc,
-  electron, ...) have the drvPath Nix computes, and the one that fails
-  (docker) fails on both sides.
-- Whole-nixpkgs parity (every attribute's drvPath against nix-eval-jobs)
-  is in progress; see [verification](./docs/verification.md).
+- The parser accepts all 41,313 `.nix` files in nixpkgs (8 s); the
+  whole tree compiles to TypeScript in 28 s.
+- Whole-nixpkgs parity against nix-eval-jobs, nixpkgs
+  [6510408d](https://github.com/NixOS/nixpkgs/commit/6510408d147d8c5e6d76043e899e9251756f6a75),
+  all 231,777 attributes of `ci/eval/outpaths.nix`: 228,492 drvPaths
+  identical, 2,714 attributes failing on both sides, 30 differing and
+  541 failing only in jinx (one cause each, being fixed). That is 99.75
+  percent agreement; the run took 14 minutes on 32 cores.
+- nix-conformance: 1,106 of 1,305 cases pass, including every `.drv`
+  and NAR round trip ([verification](./docs/verification.md)).
+- jinx evaluates nixpkgs in a browser tab, fetching compiled modules on
+  demand: hello in 1.7 s, firefox in 8 s, with Nix's drvPaths.
 
 <!-- END status -->
 

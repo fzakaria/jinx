@@ -101,6 +101,9 @@ import {
   attrCount,
   isLargeAttrs,
   type PlainAttrs,
+  attrPos,
+  derivedAttrs,
+  MapPos,
 } from "./value.ts";
 import { toXml } from "./xml.ts";
 import { fromToml } from "./toml.ts";
@@ -109,12 +112,16 @@ import { fromToml } from "./toml.ts";
 
 export interface Settings {
   currentSystem: string;
+  // Whether getEnv reads the environment (nix-instantiate's default) or
+  // answers "" (--pure-eval).
+  impure: boolean;
   // Lines a `warn`/`trace` builtin prints go here.
   log: (line: string) => void;
 }
 
 export const settings: Settings = {
   currentSystem: "x86_64-linux",
+  impure: false,
   // stderr under node, the console in a browser.
   log: (line) =>
     typeof process === "undefined"
@@ -788,7 +795,7 @@ def("hasAttr", 2, (name, a) => hasAttr(forceAttrs(a), forceStringNoCtx(name)));
 def("removeAttrs", 2, (a, names) => {
   const s = forceAttrs(a);
   const drop = new Set(forceList(names).map((n) => forceStringNoCtx(n)));
-  const out: PlainAttrs = {};
+  const out = derivedAttrs(s);
   for (const k of attrKeys(s)) {
     if (!drop.has(k)) {
       out[k] = getAttr(s, k) as Lazy;
@@ -796,14 +803,20 @@ def("removeAttrs", 2, (a, names) => {
   }
   return out;
 });
+// Each attribute takes the position of its element's `value`, as in Nix.
 def("listToAttrs", 1, (l) => {
-  const out: PlainAttrs = {};
+  const pos = new MapPos();
+  const out = { __proto__: pos } as unknown as PlainAttrs;
   for (const e of forceList(l)) {
     const item = forceAttrs(e);
     const name = forceStringNoCtx(attr(item, "name"));
     // The first occurrence wins.
     if (!hasAttr(out, name)) {
       out[name] = attr(item, "value");
+      const p = attrPos(item, "value");
+      if (p !== null) {
+        pos.set(name, p);
+      }
     }
   }
   return out;
@@ -813,7 +826,7 @@ def("listToAttrs", 1, (l) => {
 def("intersectAttrs", 2, (a, c) => {
   const x = forceAttrs(a);
   const y = forceAttrs(c);
-  const out: PlainAttrs = {};
+  const out = derivedAttrs(y);
   // The left side is the function's formals and small; the right side is
   // large or layered, and counting a layered set would flatten it.
   if (isLargeAttrs(y) || attrCount(x) < attrCount(y)) {
@@ -843,6 +856,7 @@ def("catAttrs", 2, (name, l) => {
   }
   return out;
 });
+// Nix gives the result of mapAttrs no positions.
 def("mapAttrs", 2, (f, a) => {
   const s = forceAttrs(a);
   const out: PlainAttrs = {};
@@ -890,12 +904,12 @@ def("functionArgs", 1, (f) => {
   }
   return out;
 });
-// jinx does not record attribute positions yet; nixpkgs uses this for
-// meta.position, which is not part of any derivation.
 def("unsafeGetAttrPos", 2, (name, a) => {
-  forceStringNoCtx(name);
-  forceAttrs(a);
-  return null;
+  const pos = attrPos(forceAttrs(a), forceStringNoCtx(name));
+  if (pos === null) {
+    return null;
+  }
+  return { file: pos.file, line: BigInt(pos.line), column: BigInt(pos.column) };
 });
 
 // JSON / XML
@@ -1156,7 +1170,11 @@ def("findFile", 2, (_searchPath, name) => {
     `file '${n}' was not found in the Nix search path (jinx evaluates with an empty NIX_PATH)`,
   );
 });
-def("getEnv", 1, () => "");
+// Pure by default; `--impure` reads the process environment, as
+// nix-instantiate does without --pure-eval.
+def("getEnv", 1, (name) =>
+  settings.impure ? (process.env[forceStringNoCtx(name)] ?? "") : "",
+);
 def("placeholder", 1, (name) => hashPlaceholder(forceStringNoCtx(name)));
 def("toFile", 2, toFile);
 def("derivationStrict", 1, derivationStrict);

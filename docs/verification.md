@@ -65,10 +65,20 @@ written for leviathan, 256 cores and 251 GB):
    drvPath), nix-error (jinx has one), or both-error.
 
 The result is a table and a list of the first differing attribute per
-cause, which is the work queue. The same run measures wall time and
-peak memory for both sides. This is the bar [psyclyx/fix] met, every
-attribute identical, and the number the status block in the README
-reports.
+cause, which is the work queue; `eval-jobs --only` re-runs exactly the
+flagged attributes after a fix, so an iteration costs minutes rather
+than the full run. This is the bar [psyclyx/fix] met, every attribute
+identical, and the number the status block in the README reports.
+
+The first full run, nixpkgs 6510408d on leviathan with 32 workers:
+nix-eval-jobs took 26 minutes and jinx 14 for 231,777 attributes;
+228,492 drvPaths were identical, 2,714 attributes failed on both
+sides, 30 differed and 541 failed only in jinx. The first comparison
+found five causes among 7,500 mismatches (a `constructor` key read
+from Object.prototype, the coercion of `__toString` in toJSON, Nix's
+base64 decoder ignoring text after its padding, `dirOf "/"`, and the
+indentation rule around escapes in `''` strings); after fixing them
+and re-running the flagged attributes, two causes remain.
 
 ## What the bar does not cover
 

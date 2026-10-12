@@ -43,6 +43,134 @@ export interface PlainAttrs {
 
 export type Attrs = PlainAttrs | Layered;
 
+// Where a set's attributes were defined, for builtins.unsafeGetAttrPos,
+// which nixpkgs uses for meta.position. The emitter gives every literal
+// set a PosTable as its prototype: one table per literal site, shared by
+// every set the site creates, holding nothing enumerable so the set's
+// own attributes are all a reader sees. Sets made by `//` get a table
+// that defers to the operands'.
+export abstract class AttrPos {
+  abstract lookup(name: string, set: PlainAttrs): Pos | null;
+}
+
+export interface Pos {
+  readonly file: string;
+  readonly line: number;
+  readonly column: number;
+}
+
+export class PosTable extends AttrPos {
+  private readonly file: string;
+  private readonly entries: ReadonlyMap<string, readonly [number, number]>;
+
+  constructor(
+    file: string,
+    entries: readonly (readonly [string, number, number])[],
+  ) {
+    super();
+    // Non-enumerable, so a for-in over a set with this prototype sees
+    // only the set's own attributes.
+    const map = new Map<string, readonly [number, number]>();
+    for (const [name, line, column] of entries) {
+      map.set(name, [line, column]);
+    }
+    Object.defineProperty(this, "file", { value: file, enumerable: false });
+    Object.defineProperty(this, "entries", { value: map, enumerable: false });
+    this.file = file;
+    this.entries = map;
+  }
+
+  override lookup(name: string): Pos | null {
+    const e = this.entries.get(name);
+    return e === undefined
+      ? null
+      : { file: this.file, line: e[0], column: e[1] };
+  }
+}
+
+// The positions of `x // y` as a flat set: y's for what it holds, x's
+// otherwise.
+class MergedPos extends AttrPos {
+  private readonly x: Attrs;
+  private readonly y: Attrs;
+
+  constructor(x: Attrs, y: Attrs) {
+    super();
+    Object.defineProperty(this, "x", { value: x, enumerable: false });
+    Object.defineProperty(this, "y", { value: y, enumerable: false });
+    this.x = x;
+    this.y = y;
+  }
+
+  override lookup(name: string): Pos | null {
+    return hasAttr(this.y, name)
+      ? attrPos(this.y, name)
+      : attrPos(this.x, name);
+  }
+}
+
+// The positions of a set a builtin derived from another (mapAttrs,
+// removeAttrs): the source's.
+class SamePos extends AttrPos {
+  private readonly source: Attrs;
+
+  constructor(source: Attrs) {
+    super();
+    Object.defineProperty(this, "source", { value: source, enumerable: false });
+    this.source = source;
+  }
+
+  override lookup(name: string): Pos | null {
+    return attrPos(this.source, name);
+  }
+}
+
+// Positions gathered one attribute at a time (listToAttrs).
+export class MapPos extends AttrPos {
+  private readonly map: Map<string, Pos>;
+
+  constructor() {
+    super();
+    const map = new Map<string, Pos>();
+    Object.defineProperty(this, "map", { value: map, enumerable: false });
+    this.map = map;
+  }
+
+  set(name: string, pos: Pos): void {
+    this.map.set(name, pos);
+  }
+
+  override lookup(name: string): Pos | null {
+    return this.map.get(name) ?? null;
+  }
+}
+
+export function positions(
+  file: string,
+  entries: readonly (readonly [string, number, number])[],
+): PosTable {
+  return new PosTable(file, entries);
+}
+
+// A fresh plain set whose attributes report the positions of `source`'s.
+export function derivedAttrs(source: Attrs): PlainAttrs {
+  return { __proto__: new SamePos(source) } as unknown as PlainAttrs;
+}
+
+// builtins.unsafeGetAttrPos
+export function attrPos(a: Attrs, name: string): Pos | null {
+  if (a instanceof Layered) {
+    return hasAttr(a.over, name)
+      ? attrPos(a.over, name)
+      : attrPos(a.base, name);
+  }
+  const proto: unknown = Object.getPrototypeOf(a);
+  if (proto instanceof AttrPos) {
+    return proto.lookup(name, a);
+  }
+  return null;
+}
+
 // `base // over` without copying base. nixpkgs builds its package set as
 // a fixpoint over a chain of overlays, each `//` of a set with tens of
 // thousands of attributes; copying every layer is where an evaluation's
@@ -97,7 +225,10 @@ export class Layered {
       overs.push(a.over);
       a = a.base;
     }
-    const flat: PlainAttrs = { ...(a instanceof Layered ? a.flat! : a) };
+    const flat = {
+      __proto__: new SamePos(this),
+      ...(a instanceof Layered ? a.flat! : a),
+    } as unknown as PlainAttrs;
     for (let i = overs.length - 1; i >= 0; i--) {
       Object.assign(flat, toPlain(overs[i]!));
     }
@@ -190,14 +321,22 @@ export function updateAttrs(x: Attrs, y: Attrs): Attrs {
   }
   if (x instanceof Layered) {
     if (x.depth >= MAX_LAYERS) {
-      return { ...x.flatten(), ...toPlain(y) };
+      return {
+        __proto__: new MergedPos(x, y),
+        ...x.flatten(),
+        ...toPlain(y),
+      } as unknown as PlainAttrs;
     }
     return new Layered(x, y);
   }
   if (isLargeAttrs(x)) {
     return new Layered(x, y);
   }
-  return { ...x, ...toPlain(y) };
+  return {
+    __proto__: new MergedPos(x, y),
+    ...x,
+    ...toPlain(y),
+  } as unknown as PlainAttrs;
 }
 
 export interface Formals {
@@ -353,8 +492,10 @@ export function isAttrs(v: Value): v is Attrs {
   if (v instanceof Layered) {
     return true;
   }
-  const proto = Object.getPrototypeOf(v);
-  return proto === Object.prototype || proto === null;
+  const proto: unknown = Object.getPrototypeOf(v);
+  return (
+    proto === Object.prototype || proto === null || proto instanceof AttrPos
+  );
 }
 
 export function isList(v: Value): v is List {

@@ -452,7 +452,7 @@ test("large inputs", () => {
 // matching on compileToString's output.
 test("emitted code shape", () => {
   assert.match(emitted("x: x"), /export default \(x\) => nix\.force\(x\);/);
-  assert.match(emitted("{ a = 1; }"), /\{ a: 1n \}/);
+  assert.match(emitted("{ a = 1; }"), /\{ __proto__: pos\$1, a: 1n \}/);
   assert.match(emitted("f: x: f x"), /nix\.app\(f, x\)/);
   assert.match(emitted("builtins.map (x: x) [ 1 ]"), /nix\.builtins\.map\(/);
   assert.match(emitted("map (x: x) [ 1 ]"), /nix\.builtins\.map\(/);
@@ -467,7 +467,7 @@ test("emitted code shape", () => {
   assert.match(emitted("a: with a; b"), /nix\.lookup\(w, "b"\)/);
   assert.match(emitted("a: a ? b"), /nix\.has\(a, "b"\)/);
   assert.match(emitted("let class = 1; in class"), /const class\$ = 1n;/);
-  assert.match(emitted('{ "a.b" = 1; }'), /\{ "a\.b": 1n \}/);
+  assert.match(emitted('{ "a.b" = 1; }'), /__proto__: pos\$\d+, "a\.b": 1n \}/);
   assert.match(
     emitted("x: { a, b ? 1, ... }: a"),
     /const formals\$1 = \{ args: \{ a: false, b: true \}, ellipsis: true \};/,

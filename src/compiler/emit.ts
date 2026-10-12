@@ -91,6 +91,7 @@ class Emitter {
   // Module-level declarations hoisted out of the expression: formals.
   private readonly hoisted: string[] = [];
   private formalsCount = 0;
+  private posCount = 0;
   private usesHere = false;
   private readonly dir: string;
   private readonly base: string;
@@ -384,8 +385,16 @@ class Emitter {
       }
       props.push(`${propertyKey(b.name.name)}: ${value}`);
     }
+    const table = this.hoistPositions(bindings);
     let literal =
-      props.length === 0 ? "{}" : this.bracketed("{", props, "}", depth);
+      props.length === 0 && table === null
+        ? "{}"
+        : this.bracketed(
+            "{",
+            table === null ? props : [`__proto__: ${table}`, ...props],
+            "}",
+            depth,
+          );
     if (dynamics.length > 0) {
       literal = `nix.attrsDyn(${literal}, ${this.bracketed("[", dynamics, "]", depth)})`;
     }
@@ -393,6 +402,31 @@ class Emitter {
       return literal;
     }
     return this.block([...pre, `return ${literal};`], depth);
+  }
+
+  // The positions of a literal's static attributes, as a module-level
+  // table the literal takes as its prototype (builtins.unsafeGetAttrPos).
+  private hoistPositions(bindings: readonly NixBinding[]): string | null {
+    const entries = bindings
+      .filter((b) => b.name.kind === "static")
+      .map(
+        (b) =>
+          `[${JSON.stringify((b.name as { name: string }).name)}, ${b.name.pos.line}, ${b.name.pos.column}]`,
+      );
+    if (entries.length === 0) {
+      return null;
+    }
+    const name = `pos$${++this.posCount}`;
+    this.hoisted.push(
+      `const ${name} = nix.positions(${this.fileRef()}, [${entries.join(", ")}]);`,
+    );
+    return name;
+  }
+
+  // The module's Nix file as an expression: `here` joined with the base
+  // name, so a compiled tree stays relocatable.
+  private fileRef(): string {
+    return `${this.hereRef()} + ${JSON.stringify("/" + this.base)}`;
   }
 
   // The lazy value of one binding. For `inherit x` the value is the outer
@@ -478,8 +512,16 @@ class Emitter {
         js === b.name.name ? js : `${propertyKey(b.name.name)}: ${js}`,
       );
     }
+    const table = this.hoistPositions(bindings);
     let literal =
-      props.length === 0 ? "{}" : this.bracketed("{", props, "}", depth + 1);
+      props.length === 0 && table === null
+        ? "{}"
+        : this.bracketed(
+            "{",
+            table === null ? props : [`__proto__: ${table}`, ...props],
+            "}",
+            depth + 1,
+          );
     if (dynamics.length > 0) {
       literal = `nix.attrsDyn(${literal}, ${this.bracketed("[", dynamics, "]", depth + 1)})`;
     }

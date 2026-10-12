@@ -22,6 +22,7 @@ import {
 } from "node:worker_threads";
 import { availableParallelism } from "node:os";
 import { DEFAULT_CACHE, evaluateFile, setup } from "./evaluate.ts";
+import { settings } from "../runtime/builtins.ts";
 import {
   type Attrs,
   type Lazy,
@@ -54,6 +55,8 @@ export interface EvalJobsOptions {
   // Evaluate exactly these attribute paths instead of walking the set:
   // the way to re-run the attributes a comparison flagged.
   readonly only: readonly (readonly string[])[] | null;
+  // getEnv reads the environment, as nix-eval-jobs does by default.
+  readonly impure: boolean;
 }
 
 // Main thread -> worker: evaluate this attribute path.
@@ -194,6 +197,7 @@ function workerMain(opts: EvalJobsOptions): void {
     trees: opts.trees,
     ...(opts.system !== undefined ? { system: opts.system } : {}),
   });
+  settings.impure = opts.impure;
   const root = evaluateFile(opts.file, opts.attrPath, null);
   const port = parentPort!;
   port.on("message", (req: Request) => {
