@@ -182,8 +182,9 @@ def rewrite_links(body):
     """Point the markdown's links at their rendered equivalents.
 
     A `./design.md` link drops its extension, since the published URL is
-    `/docs/design`. A link to anything else in the repository goes to
-    GitHub.
+    `/docs/design`. A file beside the pages (an image, a diagram) is
+    published beside them and keeps its link. A link to anything else in
+    the repository goes to GitHub.
     """
 
     def replace(match):
@@ -199,6 +200,11 @@ def rewrite_links(body):
         sibling = re.fullmatch(r"(?:\./)?([A-Za-z0-9._-]+)\.md", target)
         if sibling:
             return f'href="./{sibling.group(1)}{hash_}{anchor}"'
+
+        # A sibling asset, copied next to the pages.
+        asset = re.fullmatch(r"(?:\./)?([A-Za-z0-9._-]+)", target)
+        if asset and not target.endswith(".md"):
+            return f'href="./{asset.group(1)}{hash_}{anchor}"'
 
         # Anything else relative points into the repository, not the site.
         repo_path = os.path.normpath(os.path.join("docs", target))
