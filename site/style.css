@@ -167,6 +167,12 @@ code {
 
 /* The three panes, side by side on a wide screen and stacked on a narrow
    one. Each pane's editor takes a fixed height so the row lines up. */
+/* One line under the toolbar. */
+.hint {
+  margin: 0 0 0.5rem;
+  font-size: 13px;
+}
+
 #panes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
