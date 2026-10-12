@@ -20,7 +20,12 @@ nixpkgs revision. `tools/publish-nixpkgs.sh <rev> <dir> --parity
 - `.jinx/tree-index.json` and `.jinx/src-index.json`, every path of the
   tree and of the source (`tools/index-tree.ts`), which let the site's
   nixpkgs page evaluate the tree by fetching files one at a time from
-  `raw.githubusercontent.com`;
+  `raw.githubusercontent.com`; `.jinx/names.json`, the top-level
+  attribute names; `.jinx/hot.json`, the files evaluating hello reads,
+  which the page fetches in parallel on load; and `.jinx/files/`, what
+  each attribute reads beyond that (`tools/attr-files.ts`, one
+  evaluation per attribute, the slow step of publishing), which the
+  page fetches in parallel before evaluating the attribute;
 - `parity/report.md` and `parity/joined.tsv.gz` from the run against
   nix-eval-jobs on that revision ([verification.md](./verification.md)),
   and `parity/history.json` with the counts of every revision so far;

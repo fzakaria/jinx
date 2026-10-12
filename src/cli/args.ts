@@ -28,6 +28,7 @@ export const VALUE_FLAGS: ReadonlySet<string> = new Set([
   "max-heap",
   "skip-done",
   "only",
+  "record-files",
 ]);
 
 export function parseArgs(argv: string[]): Parsed {

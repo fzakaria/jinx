@@ -58,6 +58,7 @@ run "$here/src/cli/main.ts" compile "$src" --out "$out" --vendor-runtime
 # The config names the source tree relative to the output tree, and
 # records the revision so a consumer can fetch exactly that source.
 jinxCommit=$(cd "$here" && (jj log -r @- --no-graph -T commit_id 2>/dev/null || git rev-parse HEAD))
+abi=$(run --input-type=module -e "import { ABI } from '$here/src/runtime/index.ts'; console.log(ABI)")
 cat > "$out/.jinx/config.json" <<JSON
 {
   "srcRoot": "./nixpkgs",
@@ -66,7 +67,8 @@ cat > "$out/.jinx/config.json" <<JSON
     "narHash": "$narHash",
     "url": "github:NixOS/nixpkgs/$fullRev"
   },
-  "jinx": "$jinxCommit"
+  "jinx": "$jinxCommit",
+  "abi": $abi
 }
 JSON
 ln -sfn "$src" "$out/nixpkgs"
@@ -85,6 +87,14 @@ names=$(mktemp --suffix=.nix)
 echo "builtins.attrNames (import $out/nixpkgs { system = \"x86_64-linux\"; config = {}; overlays = []; })" > "$names"
 run "$here/src/cli/main.ts" eval "$names" --json --tree "$out" > "$out/.jinx/names.json"
 rm -f "$names"
+
+# What each attribute reads beyond the hot set, one evaluation per
+# attribute. This is the slow step: hours on a laptop, minutes on a
+# large machine. JINX_ATTR_FILES_JOBS sets the parallelism;
+# JINX_ATTR_FILES=0 skips it (the page then fetches as it goes).
+if [ "${JINX_ATTR_FILES:-1}" != 0 ]; then
+  run "$here/tools/attr-files.ts" "$out" --jobs "${JINX_ATTR_FILES_JOBS:-$(nproc)}"
+fi
 
 # The parity report for this revision, and the README written from it.
 if [ -n "$parity" ]; then

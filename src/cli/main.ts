@@ -2,17 +2,18 @@
 //
 //   jinx compile <src-root> --out <dir>      transpile a tree
 //   jinx compile <file.nix>                  print one file's TypeScript
-//   jinx eval <file.nix> [-A a.b] [--json|--raw] [--strict]
+//   jinx eval <file.nix> [-A a.b] [--json|--raw] [--tree dir] [--record-files out.json]
 //   jinx test-corpus <dir> [--record] [--offline]
 //   jinx adapter OP FILE [FLAGS...]          nix-conformance adapter
 //   jinx instantiate <file.nix> [-A a.b]     write the .drv closure to the store
 //   jinx eval-jobs <file.nix> [-A a.b] [--workers N] [--max-heap MB] [--skip-done out.jsonl] [--only attrs.txt]
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { compileToString, compileTree } from "../compiler/compile.ts";
 import { parseArgs } from "./args.ts";
+import { recordedFiles, startRecording } from "./record-files.ts";
 import { DEFAULT_CACHE, evaluateFile, setup } from "./evaluate.ts";
 import { runCorpus } from "./corpus.ts";
 import { runAdapter } from "./adapter.ts";
@@ -185,6 +186,10 @@ function evalCmd(
     usage();
   }
   const cache = flags.get("cache");
+  const recordTo = flags.get("record-files");
+  if (typeof recordTo === "string") {
+    startRecording();
+  }
   setup({
     outRoot: typeof cache === "string" ? cache : DEFAULT_CACHE,
     trees:
@@ -219,6 +224,9 @@ function evalCmd(
     } else {
       process.stdout.write(printValue(v) + "\n");
     }
+    if (typeof recordTo === "string") {
+      writeRecording(recordTo, flags);
+    }
     return 0;
   } catch (e) {
     if (e instanceof NixError) {
@@ -230,6 +238,20 @@ function evalCmd(
     }
     throw e;
   }
+}
+
+// --record-files: the files the evaluation read, relative to the --tree
+// and to its source root.
+function writeRecording(file: string, flags: Map<string, string | true>): void {
+  const tree = flags.get("tree");
+  if (typeof tree !== "string") {
+    throw new NixError("--record-files needs --tree");
+  }
+  const cfg = JSON.parse(
+    readFileSync(join(tree, ".jinx", "config.json"), "utf8"),
+  ) as { srcRoot: string };
+  const files = recordedFiles(tree, resolve(tree, cfg.srcRoot));
+  writeFileSync(file, JSON.stringify(files) + "\n");
 }
 
 // Run the nix-conformance suite through the adapter and hold the tally to

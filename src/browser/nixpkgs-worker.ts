@@ -31,6 +31,7 @@ import {
   mount,
   onFetch,
   prefetch,
+  urlOf,
   stats as fetchStats,
 } from "./shims/fs-remote.ts";
 import {
@@ -89,16 +90,70 @@ interface InitMessage {
   // as .jinx/names.json), so the page is usable before the package set
   // is evaluated; optional, the set is evaluated for them otherwise.
   readonly namesUrl?: string;
+  // Where the per-attribute file lists live (tools/attr-files.ts writes
+  // .jinx/files/<shard>.json), fetched before an attribute is evaluated
+  // so its modules arrive in parallel; optional.
+  readonly filesUrl?: string;
   readonly system?: string;
 }
 
 // Parallel fetches during the prefetch.
 const PREFETCH_CONCURRENCY = 32;
 
-// What .jinx/hot.json holds: paths relative to the tree and to the source.
+// What .jinx/hot.json holds, and each entry of a .jinx/files shard:
+// paths relative to the tree and to the source.
 interface HotFiles {
   readonly tree: readonly string[];
   readonly src: readonly string[];
+}
+
+// A shard of per-attribute lists, by attribute name.
+type FilesShard = Record<string, HotFiles>;
+
+// The shard an attribute's list is in (tools/attr-files.ts).
+const SHARD_CHARS = 2;
+function shardOf(attr: string): string {
+  return attr.slice(0, SHARD_CHARS).replace(/[^A-Za-z0-9_-]/g, "_") || "_";
+}
+
+let filesUrl: string | null = null;
+const shards = new Map<string, Promise<FilesShard | null>>();
+
+async function fetchShard(key: string): Promise<FilesShard | null> {
+  if (filesUrl === null) {
+    return null;
+  }
+  try {
+    const res = (await fetch(
+      `${filesUrl}/${key}.json`,
+    )) as unknown as FetchResponse;
+    return res.ok ? ((await res.json()) as FilesShard) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Fetch what evaluating `attr` reads beyond the hot set, in parallel. A
+// dotted path uses its first component's list.
+async function prefetchAttr(attr: string): Promise<void> {
+  const top = attr.split(".")[0]!;
+  const key = shardOf(top);
+  let shard = shards.get(key);
+  if (shard === undefined) {
+    shard = fetchShard(key);
+    shards.set(key, shard);
+  }
+  const files = (await shard)?.[top];
+  if (files === undefined) {
+    return;
+  }
+  await prefetch(
+    [
+      ...files.tree.map((p) => `${TREE_ROOT}/${p}`),
+      ...files.src.map((p) => `${SRC_ROOT}/${p}`),
+    ],
+    PREFETCH_CONCURRENCY,
+  );
 }
 
 interface EvalMessage {
@@ -218,6 +273,8 @@ async function init(msg: InitMessage): Promise<void> {
   nix.settings.currentSystem = msg.system ?? DEFAULT_SYSTEM;
   nix.settings.log = (line) => postMessage({ type: "log", line });
 
+  checkAbi();
+  filesUrl = msg.filesUrl ?? null;
   let names =
     msg.namesUrl === undefined ? null : await fetchNames(msg.namesUrl);
   if (names === null) {
@@ -235,6 +292,22 @@ async function init(msg: InitMessage): Promise<void> {
   if (msg.hotUrl !== undefined) {
     await prefetchHot(msg.hotUrl);
     progress(true);
+  }
+}
+
+// The tree's .jinx/config.json names the ABI its modules were compiled
+// against; this bundle's runtime has to match, or the modules misread
+// the runtime's values ("expected a set but found a set").
+const TREE_CONFIG = `${TREE_ROOT}/.jinx/config.json`;
+function checkAbi(): void {
+  const cfg = JSON.parse(
+    new TextDecoder().decode(fetchSync(urlOf(TREE_CONFIG))),
+  ) as { abi?: number; jinx?: string };
+  const abi = cfg.abi ?? 1;
+  if (abi !== nix.ABI) {
+    throw new Error(
+      `this page's runtime is ABI ${nix.ABI} but the tree was compiled against ABI ${abi} (jinx ${(cfg.jinx ?? "?").slice(0, 7)}): the site and the tree are out of step, redeploy the site against the current tree`,
+    );
   }
 }
 
@@ -339,8 +412,16 @@ self.onmessage = (ev) => {
       });
       return;
     }
-    const result = evaluate(msg.attr);
-    postMessage({ ...result, ...activity() });
+    const attr = msg.attr;
+    prefetchAttr(attr)
+      .then(() => {
+        const result = evaluate(attr);
+        postMessage({ ...result, ...activity() });
+      })
+      .catch((e: unknown) => {
+        progress(true);
+        postMessage({ type: "error", attr, error: describeError(e) });
+      });
   } catch (e) {
     progress(true);
     postMessage({

@@ -17,9 +17,7 @@ in
       pkgs.cmark-gfm
       (pkgs.python3.withPackages (ps: [ ps.pygments ]))
       pkgs.jq
-    ]
-    # strace records the files an evaluation opens (tools/hot-files.sh).
-    ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.strace ];
+    ];
     # tsc finds @types/node through node_modules; the shell links the
     # pinned copy in, so no npm install is needed.
     shellHook = ''

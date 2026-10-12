@@ -12,6 +12,8 @@ const INDEX_FILE = "index.json";
 const HOT_FILE = ".jinx/hot.json";
 // The top-level attribute names, under the tree.
 const NAMES_FILE = ".jinx/names.json";
+// The per-attribute file lists, under the tree.
+const FILES_DIR = ".jinx/files";
 const DEFAULT_SYSTEM = "x86_64-linux";
 
 const HASH_PARAM_ATTR = "attr";
@@ -387,6 +389,9 @@ async function start() {
   const namesUrl = absolute(
     config.namesUrl ?? `${config.treeUrl}/${NAMES_FILE}`,
   );
+  const filesUrl = absolute(
+    config.filesUrl ?? `${config.treeUrl}/${FILES_DIR}`,
+  );
   $("rev").textContent = ` · nixpkgs ${config.rev.slice(0, 7)}`;
 
   worker = new Worker(WORKER_URL, { type: "module" });
@@ -407,6 +412,7 @@ async function start() {
       config.srcBigUrl === undefined ? undefined : absolute(config.srcBigUrl),
     hotUrl,
     namesUrl,
+    filesUrl,
     system: config.system ?? DEFAULT_SYSTEM,
   });
 }
