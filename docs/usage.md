@@ -56,6 +56,29 @@ $ nix-store --realise /nix/store/...-nixos-system-....drv
 The drvPath is the one `nix-instantiate` computes, so the store builds
 what jinx wrote.
 
+The same system from TypeScript
+([examples/nixos.ts](https://github.com/fzakaria/jinx/blob/main/examples/nixos.ts)):
+a module is a function of the module arguments, and its body is an
+object. A read of `pkgs` waits in `lazy` until the option is read, as
+it does in Nix.
+
+```ts
+import { lazy, load } from "jinx";
+
+const configuration = ({ pkgs }) => ({
+  fileSystems: { "/": { device: "/dev/sda1", fsType: "ext4" } },
+  boot: { loader: { grub: { device: "/dev/sda" } } },
+  networking: { hostName: "jinx", firewall: { allowedTCPPorts: [22, 80] } },
+  services: { openssh: { enable: true } },
+  environment: { systemPackages: lazy(() => [pkgs.git, pkgs.ripgrep]) },
+  users: { users: { farid: { isNormalUser: true, extraGroups: ["wheel"] } } },
+  system: { stateVersion: "25.11" },
+});
+
+const nixos = load("/path/to/nixpkgs/nixos", { args: { configuration } });
+console.log(nixos.config.system.build.toplevel.drvPath);
+```
+
 ## From TypeScript
 
 The library in `src/lib` evaluates Nix and gives it back as a view:

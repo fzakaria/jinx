@@ -173,6 +173,37 @@ in
 `,
   },
   {
+    id: "ts-nixos",
+    title: "TypeScript: a NixOS system",
+    files: "nixos",
+    ts: `// A NixOS system written in TypeScript. A module is a function of the
+// module arguments, as in Nix; its body is a plain object: options are
+// nested fields, lists are arrays, packages come from pkgs, read inside
+// lazy as the module system builds pkgs from the configuration itself.
+// The module system is the one nixos-rebuild runs. About twenty seconds.
+import { lazy, nix } from "jinx";
+
+const nixos = nix.import(nix.findFile(nix.nixPath, "nixpkgs/nixos"));
+
+const configuration = ({ pkgs }: { pkgs: any }) => ({
+  fileSystems: { "/": { device: "/dev/sda1", fsType: "ext4" } },
+  boot: { loader: { grub: { device: "/dev/sda" } } },
+  networking: {
+    hostName: "jinx",
+    firewall: { allowedTCPPorts: [22, 80] },
+  },
+  services: { openssh: { enable: true } },
+  environment: { systemPackages: lazy(() => [pkgs.git, pkgs.ripgrep]) },
+  users: { users: { farid: { isNormalUser: true, extraGroups: ["wheel"] } } },
+  system: { stateVersion: "25.11" },
+});
+
+const system = nixos({ configuration }).config.system.build.toplevel;
+
+export default { system: system.drvPath, hostName: nixos({ configuration }).config.networking.hostName };
+`,
+  },
+  {
     id: "ts-derivation",
     title: "TypeScript: a derivation from a typed object",
     ts: `// Written in TypeScript, not compiled from Nix. \`nix.derivation\` is
