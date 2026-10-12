@@ -76,6 +76,16 @@ export class NixString {
   toString(): string {
     return this.s;
   }
+
+  // Hand-written code sees the string, not the object, in template
+  // literals and in console.log.
+  [Symbol.toPrimitive](): string {
+    return this.s;
+  }
+
+  [Symbol.for("nodejs.util.inspect.custom")](): string {
+    return this.s;
+  }
 }
 
 export type Str = string | NixString;

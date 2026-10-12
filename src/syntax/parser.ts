@@ -183,8 +183,16 @@ class Parser {
         }
         case "let": {
           this.lx.next();
+          // The legacy `let { body = e; ... }` is `(rec { ... }).body`.
           if (this.isOp("{")) {
-            this.fail("the 'let { ... }' form was removed from Nix", t.pos);
+            this.lx.next();
+            const attrs = this.parseAttrs(t.pos, true);
+            return {
+              kind: "select",
+              pos: t.pos,
+              subject: attrs,
+              path: [{ kind: "static", name: "body", pos: t.pos }],
+            };
           }
           const bindings = this.parseBindings("in");
           this.expectKeyword("in");

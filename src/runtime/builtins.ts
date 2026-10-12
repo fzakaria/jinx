@@ -109,7 +109,8 @@ export interface Settings {
 
 export const settings: Settings = {
   currentSystem: "x86_64-linux",
-  log: (line) => process.stderr.write(line + "\n"),
+  // stderr under node, the console in a browser.
+  log: (line) => (typeof process === "undefined" ? console.error(line) : process.stderr.write(line + "\n")),
 };
 
 // The Nix this runtime mirrors.

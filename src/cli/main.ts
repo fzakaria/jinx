@@ -108,7 +108,8 @@ function main(argv: string[]): number {
         offline: flags.has("offline"),
       });
     case "adapter":
-      return runAdapter(positional);
+      // The adapter gets nix-instantiate's flags verbatim.
+      return runAdapter(rest);
     case "test-conformance":
       return conformance(positional, flags);
     case "instantiate":

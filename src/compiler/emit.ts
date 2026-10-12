@@ -22,8 +22,7 @@ import type {
   StringPart,
 } from "../syntax/ast.ts";
 import { formatPos } from "../syntax/ast.ts";
-import { GLOBALS, builtins } from "../runtime/builtins.ts";
-import { isPrimOp } from "../runtime/value.ts";
+import { BUILTIN_ARITY, GLOBALS } from "./builtins-table.ts";
 import { type Binding, Scope, isIdentifierName } from "./scope.ts";
 
 export interface EmitOptions {
@@ -44,13 +43,13 @@ export class CompileError extends Error {
 
 const INDENT = "  ";
 
-// The arity of each global builtin, so that `map f xs` becomes one call
-// rather than two applications.
+// The arity of each builtin, so that `map f xs` becomes one call rather
+// than two applications; a constant or a Nix-level function (derivation)
+// is never called directly.
 const ARITY = new Map<string, number>();
-for (const name of Object.keys(builtins)) {
-  const v = builtins[name];
-  if (typeof v === "function" && isPrimOp(v)) {
-    ARITY.set(name, v.arity);
+for (const [name, arity] of BUILTIN_ARITY) {
+  if (arity > 0 && name !== "derivation") {
+    ARITY.set(name, arity);
   }
 }
 
@@ -269,7 +268,7 @@ class Emitter {
     if (GLOBALS.has(name)) {
       return name;
     }
-    if (name.startsWith("__") && Object.hasOwn(builtins, name.slice(2))) {
+    if (name.startsWith("__") && BUILTIN_ARITY.has(name.slice(2))) {
       return name.slice(2);
     }
     return null;
@@ -575,7 +574,7 @@ class Emitter {
       if (
         first !== undefined &&
         first.kind === "static" &&
-        Object.hasOwn(builtins, first.name)
+        BUILTIN_ARITY.has(first.name)
       ) {
         const head = builtinRef(first.name);
         return rest.length === 0
@@ -763,7 +762,7 @@ class Emitter {
         return null;
       }
       const a = head.path[0]!;
-      if (a.kind === "static" && Object.hasOwn(builtins, a.name)) {
+      if (a.kind === "static" && BUILTIN_ARITY.has(a.name)) {
         return a.name;
       }
     }
@@ -878,9 +877,12 @@ function templateEscape(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
 }
 
+// A float literal must read as a float: `1.0`, never `1`, and an exponent
+// form (`1e+308`) is already one.
 function floatLiteral(x: number): string {
-  if (Number.isInteger(x)) {
-    return `${x}.0`;
+  const text = String(x);
+  if (Number.isInteger(x) && !/[eE]/.test(text)) {
+    return `${text}.0`;
   }
-  return String(x);
+  return text;
 }

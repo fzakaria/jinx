@@ -481,7 +481,7 @@ export function path(dir: string, text: string, ...parts: Lazy[]): Path {
     return new Path(canonPath(s));
   }
   if (s.startsWith("~/") || s === "~") {
-    const home = process.env["HOME"] ?? "/";
+    const home = (typeof process === "undefined" ? undefined : process.env["HOME"]) ?? "/";
     return new Path(canonPath(home + s.slice(1)));
   }
   return new Path(canonPath(dir + "/" + s));

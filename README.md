@@ -115,6 +115,36 @@ fixed-output inputs, and computes output paths. Nothing is written to
 thunks go, how `with` resolves, what the emitted code looks like and
 why, and the performance model.
 
+## Writing derivations in TypeScript
+
+The compiled code is faithful to Nix and spells out every thunk. Code
+written by hand should not have to, so `src/lib` wraps a Nix value in a
+view: attribute reads force, calls apply, and plain objects, arrays,
+strings and numbers are accepted as arguments.
+[examples/hello.ts](./examples/hello.ts):
+
+```ts
+import { loadNixpkgs } from "jinx";
+
+const pkgs = loadNixpkgs("/path/to/nixpkgs", { system: "x86_64-linux" });
+
+const hello = pkgs.stdenv.mkDerivation({
+  pname: "hello",
+  version: "2.12.2",
+  src: pkgs.fetchurl({
+    url: "mirror://gnu/hello/hello-2.12.2.tar.gz",
+    hash: "sha256-WpqZbcKSzCTc9BHO6H6S9qrluNE72caBm0x6nc4IGKs=",
+  }),
+  meta: { license: pkgs.lib.licenses.gpl3Plus },
+});
+
+console.log(hello.drvPath); // a derivation Nix would accept, computed here
+```
+
+The same runtime evaluates nixpkgs underneath, so what the view returns
+is what Nix would return, and `jinx instantiate` can write the result
+to the store.
+
 ## Layout
 
 ```
@@ -122,6 +152,9 @@ src/syntax/     the lexer and parser, after Nix's lexer.l and parser.y
 src/compiler/   scoping and the TypeScript emitter
 src/runtime/    values, builtins, derivations, the store, NAR, regex, TOML
 src/cli/        jinx compile | eval | eval-jobs | instantiate | test-corpus | adapter
+src/lib/        the view API for TypeScript written by hand (examples/)
+src/browser/    the playground bundle for the site: compiler and runtime in a tab
+site/           jinx.dev
 tests/corpus/   Nix files evaluated by both jinx and nix, which must agree
 tests/unit/     node:test suites, most with a differential mode against nix
 nix/            the flake's pieces: package, checks, formatter, dev shell

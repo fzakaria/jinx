@@ -207,6 +207,25 @@ closure of a derivation and adds everything through `nix store add` and
 Pure evaluation that touches nothing is also what lets the compiled tree
 run in a browser.
 
+## Hand-written TypeScript
+
+The emitted code is the faithful form: every thunk and force visible,
+because the emitter cannot know what a function's caller will force.
+Code a person writes has the opposite need, and `src/lib` serves it with
+a view: a Proxy over a Nix value whose property reads force the
+attribute, whose calls apply the function (lambdas and sets with
+`__functor` alike), and whose arguments may be plain JavaScript values,
+converted on the way in (an integral `number` becomes a Nix int, an
+object a set, a function a lambda). `lazy(() => ...)` gives an
+attribute that is not evaluated until read.
+
+Nothing changes underneath: the same runtime, the same values, the same
+derivation hashing. A derivation built from TypeScript has the drvPath
+Nix would compute for the equivalent expression, and the view is only
+at the edges. A second emitter that produces this style from Nix, with
+static types inferred from `lib`'s documented signatures, is the
+"idiomatic" target the project is aimed at ([ideas.md](./ideas.md)).
+
 ## Performance model
 
 V8 is a JIT with a real garbage collector, and both help: Nix's
