@@ -1,0 +1,268 @@
+/* The parity page. Layout and chart chrome only; the tokens come from
+   ../style.css so the page reads as the site. The three outcome colours are
+   status colours, fixed by meaning and stepped for each surface: green for
+   an identical drvPath, the muted text colour for an attribute both sides
+   fail on, and the site's error red for a difference or a one-sided
+   failure. Every mark carries its label or count beside it, so the colour
+   is never the only channel. */
+:root {
+  --ok: #1a7f37;
+  --both: #8a8a8a;
+  --bad: #b42318;
+  --track: #ececec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ok: #3fb950;
+    --both: #8b8b8b;
+    --bad: #ff8a80;
+    --track: #2a2d34;
+  }
+}
+/* The page is prose and bars, so it takes the family's measure rather than
+   the playground's width. */
+body {
+  max-width: 74rem;
+}
+main p {
+  max-width: 60rem;
+}
+h2 {
+  margin-top: 1.6rem;
+  font-size: 1.15rem;
+}
+#status:empty {
+  display: none;
+}
+
+/* The headline: one tile per outcome, the hero figure in each. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.6rem;
+  margin: 0.6rem 0;
+}
+.tile {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.tile .label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 13px;
+  color: var(--muted);
+}
+.tile .value {
+  margin-top: 0.1rem;
+  font-size: 1.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.tile .share {
+  font-size: 12px;
+  color: var(--muted);
+}
+.swatch {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.swatch.ok {
+  background: var(--ok);
+}
+.swatch.both {
+  background: var(--both);
+}
+.swatch.bad {
+  background: var(--bad);
+}
+
+/* The legend: one row above the bars, a swatch and a name per outcome. */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.2rem;
+  margin: 0.4rem 0 0.2rem;
+  font-size: 13px;
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* A bar list: the name, a stacked bar, and the counts. The bar is a track
+   as wide as the largest row; the segments are 2px apart in the surface
+   colour and the data-end is rounded. */
+.bars {
+  display: grid;
+  grid-template-columns: max-content minmax(8rem, 1fr) max-content;
+  gap: 0.35rem 0.8rem;
+  align-items: center;
+  margin: 0.6rem 0;
+  font-size: 13px;
+}
+.bars .name {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 16rem;
+}
+.bar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+}
+.bar .segment {
+  height: 100%;
+  min-width: 2px;
+}
+.bar .segment.ok {
+  background: var(--ok);
+}
+.bar .segment.both {
+  background: var(--both);
+}
+.bar .segment.bad {
+  background: var(--bad);
+}
+.bar .segment:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.bars .counts {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.bars .counts .ok-count {
+  color: var(--fg);
+}
+@media (max-width: 40rem) {
+  .bars {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+  .bars .name {
+    margin-top: 0.5rem;
+  }
+}
+
+/* The error groups: one folded row per cause. */
+details.group {
+  border-top: 1px solid var(--line);
+  padding: 0.4rem 0;
+}
+details.group:last-child {
+  border-bottom: 1px solid var(--line);
+}
+details.group summary {
+  display: flex;
+  gap: 0.8rem;
+  align-items: baseline;
+  cursor: pointer;
+  list-style: none;
+}
+details.group summary::-webkit-details-marker {
+  display: none;
+}
+details.group summary::before {
+  content: "▸";
+  flex: none;
+  color: var(--muted);
+}
+details[open].group summary::before {
+  content: "▾";
+}
+details.group .count {
+  flex: none;
+  min-width: 3.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+details.group .message {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+details.group .examples {
+  margin: 0.4rem 0 0.2rem 5rem;
+  padding: 0;
+  list-style: none;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+details.group .examples li {
+  padding: 0.05rem 0;
+}
+details.group .more {
+  margin-left: 5rem;
+  font-size: 13px;
+}
+
+/* The search: the field, then the results as a table. */
+#query {
+  width: 24rem;
+  max-width: 70vw;
+  padding: 0.35rem 0.6rem;
+  font:
+    14px/1.5 ui-monospace,
+    monospace;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+#query:focus {
+  outline: 1px solid var(--accent);
+}
+#search-status {
+  font-size: 13px;
+}
+.scroll {
+  overflow-x: auto;
+}
+table {
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 0.4rem 0;
+  width: 100%;
+}
+th,
+td {
+  padding: 0.3rem 0.7rem 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+td.attr {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  white-space: nowrap;
+}
+td.outcome {
+  white-space: nowrap;
+}
+td.outcome span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+td.detail {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  min-width: 16rem;
+}

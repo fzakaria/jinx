@@ -16,6 +16,8 @@ pkgs.nixfmt-tree.override {
       "work/*"
       "tests/corpus/*"
       "tests/conformance/*"
+      # Generated data for the parity page, kept compact on purpose.
+      "site/parity/data/*"
     ];
     formatter.prettier = {
       command = "prettier";

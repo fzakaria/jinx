@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parity · jinx</title>
+    <meta
+      name="description"
+      content="Every attribute of nixpkgs, evaluated by Nix and by jinx: how many derivation paths agree, which attributes fail on both sides and why, searchable by attribute path."
+    />
+    <link rel="canonical" href="https://jinx.dev/parity/" />
+    <link rel="icon" href="../favicon.svg" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="jinx" />
+    <meta property="og:title" content="jinx — parity with Nix on all of nixpkgs" />
+    <meta
+      property="og:description"
+      content="Every attribute of nixpkgs, evaluated by nix-eval-jobs and by jinx, and the derivation paths compared one by one."
+    />
+    <meta property="og:url" content="https://jinx.dev/parity/" />
+
+    <link rel="stylesheet" href="../style.css" />
+    <link rel="stylesheet" href="parity.css" />
+  </head>
+  <body>
+    <header class="site">
+      <h1>
+        <a href="../">
+          <!-- The logo: a lambda between TypeScript's braces, the braces in
+               the text colour and the lambda in the family's accent. The
+               same shape is favicon.svg. -->
+          <svg class="logo" viewBox="0 0 44 32" width="36" height="26" aria-hidden="true">
+            <g fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3c-4 0-4.5 2.5-4.5 6v3c0 2-1 3.2-3 4 2 .8 3 2 3 4v3c0 3.5.5 6 4.5 6" stroke="currentColor" opacity=".6" />
+              <path d="M32 3c4 0 4.5 2.5 4.5 6v3c0 2 1 3.2 3 4-2 .8-3 2-3 4v3c0 3.5-.5 6-4.5 6" stroke="currentColor" opacity=".6" />
+              <path d="M16 5.5l11.5 21M22.4 17.2l-6.4 9.3" stroke="var(--accent)" stroke-width="3.2" />
+            </g>
+          </svg>
+          jinx
+        </a>
+        <span class="tagline muted">Nix, transpiled to TypeScript</span>
+      </h1>
+      <nav class="site">
+        <a href="../">Playground</a>
+        <a href="../nixpkgs/" title="real nixpkgs, evaluated in the tab">nixpkgs</a>
+        <a href="../parity/" title="every nixpkgs attribute, jinx against Nix" class="active">Parity</a>
+        <a href="../bench/">Benchmark</a>
+        <a href="../docs/">Documentation</a>
+        <a href="https://trynix.dev/" title="trynix: boot anything nixpkgs ever shipped, in your browser">trynix</a>
+        <a href="https://nixmultiverse.com/" title="nixpkgs-multiverse: every nixpkgs revision that ever existed">Multiverse</a>
+        <a href="https://github.com/fzakaria/jinx">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <p class="intro">
+        <strong class="lede">Every attribute of nixpkgs, jinx against Nix.</strong>
+        <a href="https://github.com/nix-community/nix-eval-jobs">nix-eval-jobs</a> and jinx each
+        evaluate nixpkgs' own CI configuration (<code>ci/eval/outpaths.nix</code>) and write one line
+        per attribute: its derivation path, or the error. The two outputs are joined on the attribute
+        path and every line is one of identical, both failed, differ, or failed on one side only.
+        <span class="claim">The bar is zero in the last three columns</span>, which is what
+        <a href="https://github.com/psyclyx/fix">fix</a> met before jinx.
+        <a href="../docs/verification">verification.md</a> describes the method; the joined table
+        for each revision is kept in
+        <a href="https://github.com/fzakaria/jinx-nixpkgs">jinx-nixpkgs</a> as
+        <code>parity/joined.tsv.gz</code>.
+      </p>
+
+      <p id="status" class="muted" aria-live="polite">Loading…</p>
+
+      <section id="headline" hidden>
+        <p id="meta" class="muted"></p>
+        <div id="tiles" class="tiles"></div>
+        <p id="verdict"></p>
+      </section>
+
+      <section id="systems-section" hidden>
+        <h2>By system</h2>
+        <p>
+          The attribute path's last element is the system it was evaluated for. Each bar is one
+          system's attributes; the segments are the outcomes, in the colours of the legend.
+        </p>
+        <div id="legend" class="legend"></div>
+        <div id="systems" class="bars"></div>
+      </section>
+
+      <section id="families-section" hidden>
+        <h2>By family</h2>
+        <p id="families-note"></p>
+        <div id="families" class="bars"></div>
+      </section>
+
+      <section id="errors-section" hidden>
+        <h2>Why both sides fail</h2>
+        <p id="errors-note"></p>
+        <div id="errors"></div>
+      </section>
+
+      <section id="jinx-errors-section" hidden>
+        <h2>Where only jinx fails</h2>
+        <p id="jinx-errors-note"></p>
+        <div id="jinx-errors"></div>
+      </section>
+
+      <section id="search-section" hidden>
+        <h2>Every attribute</h2>
+        <p>
+          A substring of an attribute path. For an attribute both evaluators failed on, the result
+          carries Nix's message; a top-level attribute with a <code>pkgs/by-name</code> entry links
+          to its source at this revision.
+        </p>
+        <div class="toolbar">
+          <label>
+            Search
+            <input
+              id="query"
+              type="search"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="hello"
+              aria-label="attribute path"
+            />
+          </label>
+          <span id="search-status" class="muted" aria-live="polite"></span>
+        </div>
+        <div id="results" class="scroll"></div>
+      </section>
+    </main>
+
+    <footer class="muted">
+      Made with ❤️ by
+      <a href="https://fzakaria.com">Farid Zakaria</a>
+      ·
+      <a href="https://github.com/fzakaria/jinx/blob/main/LICENSE">MIT</a>
+      ·
+      <a href="../docs/">Documentation</a>
+      ·
+      <a href="../llms.txt" title="orientation for a program driving this page">llms.txt</a>
+    </footer>
+
+    <script type="module" src="parity.js"></script>
+  </body>
+</html>

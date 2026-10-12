@@ -301,9 +301,10 @@ function conformance(
   const cache =
     process.env["JINX_CACHE"] ??
     join(process.env["TMPDIR"] ?? "/tmp", "jinx-conformance");
+  // bash by name: the sandbox has no /usr/bin/env for the runner's shebang.
   const r = spawnSync(
-    join(suite, "run"),
-    ["--json", adapter, ...positional.slice(1)],
+    "bash",
+    [join(suite, "run"), "--json", adapter, ...positional.slice(1)],
     {
       cwd: suite,
       encoding: "utf8",
@@ -311,6 +312,10 @@ function conformance(
       env: { ...process.env, JINX_MAIN: process.argv[1]!, JINX_CACHE: cache },
     },
   );
+  if (r.error !== undefined) {
+    process.stderr.write(`could not run the suite: ${r.error.message}\n`);
+    return 1;
+  }
   process.stderr.write(r.stderr);
   const lines = r.stdout.trim().split("\n");
   const last = lines[lines.length - 1] ?? "";
