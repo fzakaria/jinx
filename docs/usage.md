@@ -101,7 +101,8 @@ type error, come from `tools/gen-nixpkgs-dts.ts`
 
 ## In the browser
 
-The [playground](../) compiles and evaluates a snippet in the tab, and
-the [nixpkgs page](../nixpkgs/) evaluates attributes of the compiled
-nixpkgs. `nix run github:fzakaria/jinx#serve` serves the same site
+The [playground](../) compiles and evaluates a snippet in the tab;
+`<nixpkgs>` there is the compiled nixpkgs, fetched as the evaluation
+needs it, so a package or a NixOS system evaluates in the page. The
+[nixpkgs page](../nixpkgs/) evaluates attributes of the same tree. `nix run github:fzakaria/jinx#serve` serves the same site
 from the store, the compiled nixpkgs included, with no network.

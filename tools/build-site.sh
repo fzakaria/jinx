@@ -71,6 +71,20 @@ with esbuild esbuild -- esbuild src/browser/nixpkgs-worker.ts \
   '--define:import.meta.url="file:///tree/.jinx/runtime/index.ts"' \
   "$@"
 
+# The playground's worker for snippets that name <nixpkgs>: the same
+# runtime over the served tree, with the compiler.
+with esbuild esbuild -- esbuild src/browser/playground-worker.ts \
+  --bundle --format=esm --platform=browser --target=es2022 \
+  --outfile=site/js/playground-worker.js \
+  --alias:node:fs=./src/browser/shims/fs-remote.ts \
+  --alias:node:path=./src/browser/shims/path.ts \
+  --alias:node:url=./src/browser/shims/url.ts \
+  --alias:node:module=./src/browser/shims/module-remote.ts \
+  --alias:node:crypto=./src/browser/shims/crypto.ts \
+  --inject:./src/browser/shims/buffer.ts \
+  '--define:import.meta.url="file:///tree/.jinx/runtime/index.ts"' \
+  "$@"
+
 # The docs need cmark-gfm and a python with pygments. Outside the dev
 # shell they come from nixpkgs; a python with the module is an expression,
 # not an attribute.

@@ -134,6 +134,45 @@ in
 `,
   },
   {
+    id: "nixpkgs-hello",
+    title: "hello from nixpkgs",
+    files: "hello",
+    nix: `# <nixpkgs> is the compiled nixpkgs, fetched as the evaluation needs it.
+# The drvPath is the one Hydra built, so trynix can boot the output.
+let
+  pkgs = import <nixpkgs> { };
+in
+{
+  inherit (pkgs.hello) drvPath outPath;
+  version = pkgs.hello.version;
+}
+`,
+  },
+  {
+    id: "nixpkgs-nixos",
+    title: "a NixOS system",
+    files: "nixos",
+    nix: `# A NixOS system closure, through the module system. The configuration
+# below is the smallest that evaluates; the system attribute set is the
+# same one nixos-rebuild builds. This one takes a while: the module system
+# is a thousand files.
+let
+  nixos = import <nixpkgs/nixos> {
+    configuration = {
+      fileSystems."/" = { device = "/dev/sda1"; fsType = "ext4"; };
+      boot.loader.grub.device = "/dev/sda";
+      networking.hostName = "jinx";
+      system.stateVersion = "25.11";
+    };
+  };
+in
+{
+  system = nixos.config.system.build.toplevel.drvPath;
+  hostName = nixos.config.networking.hostName;
+}
+`,
+  },
+  {
     id: "ts-derivation",
     title: "TypeScript: a derivation from a typed object",
     ts: `// Written in TypeScript, not compiled from Nix. \`nix.derivation\` is

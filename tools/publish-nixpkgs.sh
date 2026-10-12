@@ -96,6 +96,22 @@ if [ "${JINX_ATTR_FILES:-1}" != 0 ]; then
   run "$here/tools/attr-files.ts" "$out" --jobs "${JINX_ATTR_FILES_JOBS:-$(nproc)}"
 fi
 
+# The playground's NixOS example is not an attribute of pkgs; its list
+# goes under the name "nixos".
+nixosExpr=$(mktemp --suffix=.nix)
+cat > "$nixosExpr" <<NIX
+(import $out/nixpkgs/nixos {
+  configuration = {
+    fileSystems."/" = { device = "/dev/sda1"; fsType = "ext4"; };
+    boot.loader.grub.device = "/dev/sda";
+    networking.hostName = "jinx";
+    system.stateVersion = "25.11";
+  };
+}).config.system.build.toplevel.drvPath
+NIX
+run "$here/tools/record-extra.ts" "$out" nixos "$nixosExpr"
+rm -f "$nixosExpr"
+
 # The parity report for this revision, and the README written from it.
 if [ -n "$parity" ]; then
   mkdir -p "$out/parity"

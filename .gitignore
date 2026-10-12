@@ -11,5 +11,6 @@ work/
 site/js/jinx.js
 site/js/jinx-dts.json
 site/js/nixpkgs-worker.js
+site/js/playground-worker.js
 site/docs/
 __pycache__/

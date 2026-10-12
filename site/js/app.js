@@ -248,7 +248,11 @@ function renderResult(result) {
   const list = $("derivations");
   const heading = $("derivations-heading");
   heading.hidden = false;
-  heading.textContent = `Derivations (${result.derivations.length})`;
+  const total = result.derivationCount ?? result.derivations.length;
+  heading.textContent =
+    total === result.derivations.length
+      ? `Derivations (${total})`
+      : `Derivations (${total}, the first ${result.derivations.length})`;
   list.replaceChildren(...result.derivations.map(renderDerivation));
   if (result.derivations.length === 0) {
     const none = document.createElement("p");
@@ -349,7 +353,9 @@ async function evaluate() {
     setStatus("TypeScript did not compile", { error: true });
     return;
   }
-  const result = jinx.evaluate(code, { mappings });
+  const result = needsNixpkgs(code)
+    ? await evaluateInWorker(code, mappings, currentExample?.files)
+    : jinx.evaluate(code, { mappings });
   const total = performance.now() - started;
   if (!result.ok) {
     renderError(describeFailure(result));
@@ -364,6 +370,106 @@ async function evaluate() {
   setStatus(
     `evaluated in ${formatMillis(result.millis)}, ${result.derivations.length} derivation${suffix}`,
   );
+}
+
+// ---- nixpkgs in the playground ---------------------------------------------
+
+// A snippet that names `<nixpkgs>` runs in a worker over the compiled
+// nixpkgs the nixpkgs page uses (js/playground-worker.js), which fetches
+// modules as the evaluation reaches them; everything else runs here.
+const NIXPKGS_CONFIG_URL = "nixpkgs/config.json";
+const WORKER_URL = "js/playground-worker.js";
+// In the compiled TypeScript `<nixpkgs>` is a findFile call; a snippet
+// written in TypeScript names it the same way.
+const NIXPKGS_REFERENCE = "findFile(";
+const INDEX_FILE = "index.json";
+const HOT_FILE = ".jinx/hot.json";
+const FILES_DIR = ".jinx/files";
+
+let worker = null;
+let workerReady = null;
+let pending = null;
+// The example shown, for the file list its evaluation fetches ahead.
+let currentExample = null;
+
+function needsNixpkgs(code) {
+  return code.includes(NIXPKGS_REFERENCE);
+}
+
+function absolute(u) {
+  return new URL(u, location.href).href.replace(/\/+$/, "");
+}
+
+async function startWorker() {
+  const res = await fetch(NIXPKGS_CONFIG_URL);
+  if (!res.ok) {
+    throw new Error(`could not load ${NIXPKGS_CONFIG_URL}: HTTP ${res.status}`);
+  }
+  const config = await res.json();
+  const treeUrl = absolute(config.treeUrl);
+  const srcUrl = absolute(config.srcUrl);
+  worker = new Worker(WORKER_URL, { type: "module" });
+  return new Promise((resolve, reject) => {
+    worker.onerror = (ev) => reject(new Error(`worker failed: ${ev.message}`));
+    worker.onmessage = (ev) => {
+      const msg = ev.data;
+      switch (msg.type) {
+        case "ready":
+          resolve();
+          break;
+        case "fetching":
+          if (msg.done < msg.total) {
+            setStatus(
+              `fetching the files this needs: ${msg.done} of ${msg.total}`,
+            );
+          }
+          break;
+        case "log":
+          appendLog(msg.line);
+          break;
+        case "result":
+          if (pending !== null) {
+            const done = pending;
+            pending = null;
+            done(msg);
+          }
+          break;
+        default:
+          break;
+      }
+    };
+    worker.postMessage({
+      type: "init",
+      treeUrl,
+      srcUrl,
+      treeIndexUrl: absolute(
+        config.treeIndexUrl ?? `${config.treeUrl}/${INDEX_FILE}`,
+      ),
+      srcIndexUrl: absolute(
+        config.srcIndexUrl ?? `${config.srcUrl}/${INDEX_FILE}`,
+      ),
+      filesUrl: absolute(config.filesUrl ?? `${config.treeUrl}/${FILES_DIR}`),
+      hotUrl: absolute(config.hotUrl ?? `${config.treeUrl}/${HOT_FILE}`),
+    });
+  });
+}
+
+async function evaluateInWorker(code, mappings, files) {
+  if (workerReady === null) {
+    setStatus("loading the compiled nixpkgs…");
+    workerReady = startWorker();
+  }
+  try {
+    await workerReady;
+  } catch (e) {
+    workerReady = null;
+    return { ok: false, error: e.message };
+  }
+  setStatus("evaluating in the worker…");
+  return new Promise((resolve) => {
+    pending = resolve;
+    worker.postMessage({ type: "eval", code, mappings, files });
+  });
 }
 
 // The error, headed by the Nix position when the source map knows it.
@@ -532,6 +638,7 @@ function selectMatchingExample() {
 }
 
 function showExample(example) {
+  currentExample = example;
   if (example.ts !== undefined) {
     setTsOnly(true);
     tsEditor.setValue(example.ts);

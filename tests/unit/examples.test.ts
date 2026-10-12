@@ -14,14 +14,21 @@ interface Example {
   readonly id: string;
   readonly nix?: string;
   readonly ts?: string;
+  // Set when the example reaches into the compiled nixpkgs, which the
+  // page serves and this test does not have.
+  readonly files?: string;
 }
 
 for (const example of EXAMPLES as readonly Example[]) {
-  test(`example ${example.id} evaluates`, () => {
-    const result =
-      example.ts !== undefined
-        ? evaluate(stripTypeScriptTypes(example.ts), {})
-        : evaluateNix(example.nix ?? "");
-    assert.ok(result.ok, result.ok ? "" : result.error);
-  });
+  test(
+    `example ${example.id} evaluates`,
+    { skip: example.files !== undefined },
+    () => {
+      const result =
+        example.ts !== undefined
+          ? evaluate(stripTypeScriptTypes(example.ts), {})
+          : evaluateNix(example.nix ?? "");
+      assert.ok(result.ok, result.ok ? "" : result.error);
+    },
+  );
 }
