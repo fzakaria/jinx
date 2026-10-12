@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Benchmark · jinx</title>
+    <meta
+      name="description"
+      content="How fast jinx evaluates nixpkgs against Nix itself, on the same machine and the same nixpkgs, one record per run of the benchmark tool."
+    />
+    <link rel="canonical" href="https://jinx.dev/bench/" />
+    <link rel="icon" href="../favicon.svg" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)" />
+    <link rel="stylesheet" href="../style.css" />
+    <link rel="stylesheet" href="bench.css" />
+  </head>
+  <body>
+    <header class="site">
+      <h1>
+        <a href="../">
+          <!-- The logo: a lambda between TypeScript's braces, the braces in
+               the text colour and the lambda in the family's accent. The
+               same shape is favicon.svg. -->
+          <svg class="logo" viewBox="0 0 44 32" width="36" height="26" aria-hidden="true">
+            <g fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3c-4 0-4.5 2.5-4.5 6v3c0 2-1 3.2-3 4 2 .8 3 2 3 4v3c0 3.5.5 6 4.5 6" stroke="currentColor" opacity=".6" />
+              <path d="M32 3c4 0 4.5 2.5 4.5 6v3c0 2 1 3.2 3 4-2 .8-3 2-3 4v3c0 3.5-.5 6-4.5 6" stroke="currentColor" opacity=".6" />
+              <path d="M16 5.5l11.5 21M22.4 17.2l-6.4 9.3" stroke="var(--accent)" stroke-width="3.2" />
+            </g>
+          </svg>
+          jinx
+        </a>
+        <span class="tagline muted">Nix, transpiled to TypeScript</span>
+      </h1>
+      <nav class="site">
+        <a href="../">Playground</a>
+        <a href="../docs/">Documentation</a>
+        <a class="active" href="./">Benchmark</a>
+        <a href="https://trynix.dev/" title="trynix: boot anything nixpkgs ever shipped, in your browser">trynix</a>
+        <a href="https://nixmultiverse.com/" title="nixpkgs-multiverse: every nixpkgs revision that ever existed">Multiverse</a>
+        <a href="https://github.com/fzakaria/jinx">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <p class="intro">
+        <strong class="lede">jinx against Nix, on the same machine.</strong> Each record is one
+        run of
+        <a href="https://github.com/fzakaria/jinx/blob/main/tools/bench.ts">tools/bench.ts</a>:
+        a handful of evaluations that nix-instantiate and jinx both perform on the same nixpkgs,
+        timed under GNU time as the median of three runs. jinx runs twice: cold, into an empty
+        cache, which pays for compiling every module the evaluation touches; and warm, with the
+        compiled modules already there. The outputs are compared, so a point on these charts is
+        also a parity check.
+        <a href="../docs/performance">performance.md</a> says what each probe is and where
+        jinx's time goes.
+      </p>
+
+      <h2>Latest run</h2>
+      <p id="latest-meta" class="muted"></p>
+      <div id="latest"></div>
+
+      <h2>Over time</h2>
+      <p>
+        Wall seconds per probe, one point per record, labelled with the jinx commit it measured.
+        Lower is better. A gap is a run jinx did not finish.
+      </p>
+      <div id="legend" class="legend"></div>
+      <div id="charts"></div>
+
+      <h2>Peak memory</h2>
+      <p>Peak resident set in MB, from the same runs.</p>
+      <div id="memory"></div>
+
+      <h2>Every record</h2>
+      <div id="records"></div>
+    </main>
+
+    <footer class="muted">
+      Made with ❤️ by
+      <a href="https://fzakaria.com">Farid Zakaria</a>
+      ·
+      <a href="https://github.com/fzakaria/jinx/blob/main/LICENSE">MIT</a>
+      ·
+      <a href="../docs/">Documentation</a>
+      ·
+      <a href="../llms.txt" title="orientation for a program driving this page">llms.txt</a>
+    </footer>
+
+    <script type="module" src="bench.js"></script>
+  </body>
+</html>

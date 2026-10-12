@@ -1,0 +1,179 @@
+/* The benchmark page. Layout and chart chrome only; the tokens come from
+   ../style.css so the page reads as the site. The three series colours are
+   the first three slots of the data-viz reference palette, stepped for each
+   surface and validated against it, rather than the link accent: a link
+   and a data mark are not the same thing. */
+:root {
+  --series-nix: #2a78d6;
+  --series-cold: #eb6834;
+  --series-warm: #1baf7a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --series-nix: #3987e5;
+    --series-cold: #d95926;
+    --series-warm: #199e70;
+  }
+}
+/* The page is prose and small multiples, so it takes the family's measure
+   rather than the playground's width. */
+body {
+  max-width: 74rem;
+}
+main p {
+  max-width: 60rem;
+}
+h2 {
+  margin-top: 1.6rem;
+  font-size: 1.15rem;
+}
+
+/* The legend: one row above the charts, a swatch and a name per series. */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.2rem;
+  margin: 0.4rem 0 0.2rem;
+  font-size: 13px;
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* Small multiples: as many panels per row as fit, never squashed. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.6rem;
+  margin: 0.6rem 0;
+}
+.panel-wrap {
+  position: relative;
+}
+svg.panel {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.panel .grid-line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.panel .axis {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+.panel .tick,
+.panel .subtitle,
+.panel .point-label {
+  font:
+    10px system-ui,
+    sans-serif;
+  fill: var(--muted);
+}
+.panel .tick {
+  font-variant-numeric: tabular-nums;
+}
+.panel .point-label {
+  font-family: ui-monospace, monospace;
+}
+.panel .title {
+  font:
+    600 12px system-ui,
+    sans-serif;
+  fill: var(--fg);
+}
+.panel .end-label {
+  font:
+    10px system-ui,
+    sans-serif;
+}
+.panel .series {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+/* A 2px ring of the surface around each marker keeps overlapping points
+   apart. */
+.panel .marker {
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+.panel .cursor {
+  stroke: var(--fg);
+  stroke-width: 1;
+  opacity: 0.4;
+}
+
+/* The hover tooltip, positioned by bench.js inside the panel's wrapper. */
+.tip {
+  position: absolute;
+  z-index: 1;
+  max-width: 260px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  font-size: 12px;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.tip-head {
+  font-weight: 600;
+}
+.tip-commit {
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+  font-family: ui-monospace, monospace;
+}
+.tip .swatch {
+  width: 8px;
+  height: 8px;
+  margin-right: 0.4rem;
+}
+
+/* Tables: the latest run's numbers and ratios, and every record folded. */
+.scroll {
+  overflow-x: auto;
+}
+table {
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 0.4rem 0;
+}
+th,
+td {
+  padding: 0.3rem 0.7rem 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+th {
+  color: var(--muted);
+  font-weight: 600;
+}
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+td.mismatch {
+  color: var(--error);
+}
+td.commit code {
+  font-size: 12px;
+}
+details.table summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+}

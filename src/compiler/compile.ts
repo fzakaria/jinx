@@ -57,6 +57,7 @@ export function prepareTree(opts: TreeOptions): void {
         filter: (p) => !p.endsWith(".test.ts"),
       });
     }
+    compileCorepkgs(out);
   } else if (!existsSync(runtime)) {
     symlinkSync(RUNTIME_DIR, runtime);
   } else if (!lstatSync(runtime).isSymbolicLink()) {
@@ -71,6 +72,30 @@ export function prepareTree(opts: TreeOptions): void {
       2,
     ) + "\n",
   );
+}
+
+// The corepkgs (`<nix/fetchurl.nix>`) compiled into the vendored tree, so
+// a runtime with no compiler at hand (the browser) can import them. They
+// go to <out>/.jinx/corepkgs/<name>.ts, next to the vendored runtime they
+// import, and the worker registers that directory as a tree of its own.
+const COREPKGS_DIR = "corepkgs";
+
+function compileCorepkgs(out: string): void {
+  const srcDir = join(RUNTIME_DIR, COREPKGS_DIR);
+  const outDir = join(out, CONFIG_DIR, COREPKGS_DIR);
+  mkdirSync(outDir, { recursive: true });
+  for (const name of readdirSync(srcDir)) {
+    if (!name.endsWith(".nix")) {
+      continue;
+    }
+    const file = join(srcDir, name);
+    const ast = parse(readFileSync(file, "utf8"), file);
+    const typescript = emitModule(ast, {
+      file,
+      runtimeImport: `../runtime/index.ts`,
+    });
+    writeFileSync(join(outDir, name.replace(/\.nix$/, "") + ".ts"), typescript);
+  }
 }
 
 function newestMtime(dir: string): number {

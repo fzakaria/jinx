@@ -9,18 +9,22 @@ README that the workflow rewrites.
 ## What is published
 
 A second repository, `fzakaria/jinx-nixpkgs`, holds the compiled tree
-for a sequence of nixpkgs revisions. One commit per tracked nixpkgs
-commit, carrying:
+for a sequence of nixpkgs revisions. `tools/publish-nixpkgs.sh <rev>
+<dir>` builds one: the 45,000 `.ts` modules and their source maps,
+compiled with `--vendor-runtime` so the tree stands alone, and
+`.jinx/config.json` naming the nixpkgs commit, its NAR hash and the jinx
+commit that compiled it. The source tree is not copied; the config
+points at `./nixpkgs`, which the consumer provides (a symlink to the
+store path `nix flake prefetch` gives is enough). One commit per
+tracked nixpkgs commit. The largest module is
+`pkgs/development/haskell-modules/hackage-packages.ts` at 34 MB, under
+GitHub's limit but worth knowing about.
 
-- the `.ts` tree, compiled with `--vendor-runtime` so it stands alone
-  with no reference to a jinx checkout;
-- `.jinx/config.json` naming the nixpkgs revision it was compiled from
-  (the source tree itself is not copied: it is fetched by hash when
-  needed, as the multiverse index fetches revisions);
-- `parity/report.md` and `parity/joined.tsv` from the run against
-  nix-eval-jobs for that revision ([verification.md](./verification.md));
-- `stats.json`: files compiled, time to compile, time and memory to
-  evaluate on each side, attributes identical and differing.
+Still to add to each commit: `parity/report.md` and `parity/joined.tsv`
+from the run against nix-eval-jobs for that revision
+([verification.md](./verification.md)), and `stats.json` with files
+compiled, time to compile, and time and memory to evaluate on each
+side.
 
 Why a separate repository: the compiled tree is 41,000 files and grows
 with every commit, and its history is nixpkgs' history. Keeping it out
