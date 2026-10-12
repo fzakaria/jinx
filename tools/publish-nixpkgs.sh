@@ -94,6 +94,10 @@ echo "builtins.attrNames (import $out/nixpkgs { system = \"x86_64-linux\"; confi
 run "$here/src/cli/main.ts" eval "$names" --json --tree "$out" > "$out/.jinx/names.json"
 rm -f "$names"
 
+# Where every top-level attribute is defined, so the page shows the
+# source before the attribute is evaluated.
+run --max-old-space-size=32000 "$here/tools/attr-positions.ts" "$out"
+
 # What each attribute reads beyond the hot set, one evaluation per
 # attribute. This is the slow step: hours on a laptop, minutes on a
 # large machine. JINX_ATTR_FILES_JOBS sets the parallelism;

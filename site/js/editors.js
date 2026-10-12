@@ -202,8 +202,61 @@ function configureMonaco(monaco) {
   });
   ts.typescriptDefaults.setEagerModelSync(true);
   setValidation(monaco, false);
+  registerModuleLinks(monaco);
   loadDeclarations(monaco).catch((e) => {
     console.warn("runtime declarations unavailable; completions are off:", e);
+  });
+}
+
+// A compiled module names the module a direct import loads in a type,
+// `typeof import("./x.ts")`. The specifier becomes a link, and following
+// one calls the handler the page registered with the specifier, so the
+// page can fetch that module from the tree and show it.
+const MODULE_LINK_SCHEME = "jinx-module";
+const MODULE_IMPORT_RE = /typeof import\("([^"]+)"\)/g;
+const MODULE_LINK_TOOLTIP = "open the compiled module";
+let moduleLinkHandler = null;
+
+export function setModuleLinkHandler(handler) {
+  moduleLinkHandler = handler;
+}
+
+function registerModuleLinks(monaco) {
+  monaco.languages.registerLinkProvider("typescript", {
+    provideLinks(model) {
+      if (moduleLinkHandler === null) {
+        return { links: [] };
+      }
+      const links = [];
+      const text = model.getValue();
+      for (const m of text.matchAll(MODULE_IMPORT_RE)) {
+        const spec = m[1];
+        const start = model.getPositionAt(m.index + m[0].indexOf(spec));
+        const end = model.getPositionAt(
+          m.index + m[0].indexOf(spec) + spec.length,
+        );
+        links.push({
+          range: new monaco.Range(
+            start.lineNumber,
+            start.column,
+            end.lineNumber,
+            end.column,
+          ),
+          url: monaco.Uri.from({ scheme: MODULE_LINK_SCHEME, query: spec }),
+          tooltip: MODULE_LINK_TOOLTIP,
+        });
+      }
+      return { links };
+    },
+  });
+  monaco.editor.registerLinkOpener({
+    open(uri) {
+      if (uri.scheme !== MODULE_LINK_SCHEME || moduleLinkHandler === null) {
+        return false;
+      }
+      moduleLinkHandler(uri.query);
+      return true;
+    },
   });
 }
 

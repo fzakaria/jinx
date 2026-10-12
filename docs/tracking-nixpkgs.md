@@ -35,9 +35,10 @@ does the same.
   ([verification.md](./verification.md)), one line per attribute;
 - the README: a status table for the revision and a history table with
   one row per revision published;
-- `.jinx/names.json`, `.jinx/hot.json` and `.jinx/files/`: what the
-  [nixpkgs page](../nixpkgs/) reads to evaluate the tree in a browser,
-  fetching files as it needs them.
+- `.jinx/names.json`, `.jinx/hot.json`, `.jinx/files/` and
+  `.jinx/positions/`: what the [nixpkgs page](../nixpkgs/) reads to
+  evaluate the tree in a browser, fetching files as it needs them, and
+  where every top-level attribute is defined.
 
 Each revision is also a regression test for the compiler: a jinx change
 that lowers the parity count on any revision is a regression, and the

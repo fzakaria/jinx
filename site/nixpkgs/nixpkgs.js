@@ -14,6 +14,10 @@ const HOT_FILE = ".jinx/hot.json";
 const NAMES_FILE = ".jinx/names.json";
 // The per-attribute file lists, under the tree.
 const FILES_DIR = ".jinx/files";
+// Where each top-level attribute is defined, a shard per leading two
+// characters of the name, written by tools/attr-positions.ts.
+const POSITIONS_DIR = ".jinx/positions";
+const SHARD_CHARS = 2;
 const DEFAULT_SYSTEM = "x86_64-linux";
 
 const HASH_PARAM_ATTR = "attr";
@@ -139,6 +143,49 @@ function compiledModuleUrl(position) {
   return `${config.treeUrl}/${file}`;
 }
 
+// ---- positions -----------------------------------------------------------
+
+let positionsUrl = "";
+const positionShards = new Map();
+
+// The shard key of a top-level name, as tools/attr-positions.ts shards.
+function shardOf(name) {
+  return name.slice(0, SHARD_CHARS).replace(/[^A-Za-z0-9_-]/g, "_") || "_";
+}
+
+// "<file>:<line>" for a top-level attribute from the published positions,
+// or null: a dotted path reaches into a set the shards do not cover, and
+// a tree without positions answers nothing.
+async function positionFor(attr) {
+  if (attr.includes(".") || positionsUrl === "") {
+    return null;
+  }
+  const key = shardOf(attr);
+  let shard = positionShards.get(key);
+  if (shard === undefined) {
+    shard = fetch(`${positionsUrl}/${key}.json`)
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null);
+    positionShards.set(key, shard);
+  }
+  const found = (await shard)?.[attr];
+  return found === undefined ? null : found;
+}
+
+// The source link, shown while the attribute evaluates; the result card
+// repeats it when the evaluation ends.
+async function showEarlySource(attr) {
+  $("source-early").hidden = true;
+  const position = await positionFor(attr);
+  if (position === null || !running || $("attr").value.trim() !== attr) {
+    return;
+  }
+  const a = $("source-early-link");
+  a.href = githubLink(position);
+  a.textContent = position;
+  $("source-early").hidden = false;
+}
+
 function showError(text) {
   $("result-card").hidden = true;
   $("error").hidden = false;
@@ -184,10 +231,12 @@ function showResult(r) {
     $("ts-toggle").hidden = false;
   }
 
+  $("source-early").hidden = true;
   $("fetched").textContent = describeActivity(r);
   $("trynix-link").href = trynixLink(r.outPath);
   $("typescript").hidden = true;
   $("typescript").textContent = "";
+  $("ts-module").hidden = true;
   $("ts-toggle").textContent = SHOW_TS;
   $("ts-toggle").dataset.url =
     r.position === null ? "" : compiledModuleUrl(r.position);
@@ -209,31 +258,46 @@ async function toggleTypescript(ev) {
   const url = toggle.dataset.url;
   if (tsShown !== url) {
     toggle.textContent = "fetching…";
-    let text;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      text = await res.text();
-    } catch (e) {
-      text = `// could not fetch ${url}: ${e.message}`;
-    }
-    box.hidden = false;
-    if (tsEditor === null) {
-      const { createEditor } = await import(EDITORS_URL);
-      tsEditor = await createEditor(box, {
-        language: "typescript",
-        readOnly: true,
-        onChange: () => {},
-        uri: "file:///tree/module.ts",
-      });
-    }
-    tsEditor.setValue(text);
-    tsShown = url;
+    await showModule(url);
   }
   box.hidden = false;
   toggle.textContent = HIDE_TS;
+}
+
+// Fetch one compiled module and show it in the pane, with its path under
+// the tree as the caption. A direct import in the module is a link
+// (js/editors.js), and following one shows that module instead.
+async function showModule(url) {
+  const box = $("typescript");
+  let text;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    text = await res.text();
+  } catch (e) {
+    text = `// could not fetch ${url}: ${e.message}`;
+  }
+  box.hidden = false;
+  if (tsEditor === null) {
+    const { createEditor, setModuleLinkHandler } = await import(EDITORS_URL);
+    tsEditor = await createEditor(box, {
+      language: "typescript",
+      readOnly: true,
+      onChange: () => {},
+      uri: "file:///tree/module.ts",
+    });
+    setModuleLinkHandler((spec) => {
+      showModule(new URL(spec, tsShown).href);
+    });
+  }
+  tsEditor.setValue(text);
+  tsShown = url;
+  $("ts-module").textContent = url.startsWith(`${config.treeUrl}/`)
+    ? url.slice(config.treeUrl.length + 1)
+    : url;
+  $("ts-module").hidden = false;
 }
 
 // ---- suggestions ---------------------------------------------------------
@@ -358,6 +422,7 @@ function run() {
   setStatus(`evaluating pkgs.${attr}…`);
   $("run").disabled = true;
   worker.postMessage({ type: "eval", attr });
+  showEarlySource(attr);
 }
 
 function onMessage(ev) {
@@ -435,6 +500,9 @@ async function start() {
   );
   const filesUrl = absolute(
     config.filesUrl ?? `${config.treeUrl}/${FILES_DIR}`,
+  );
+  positionsUrl = absolute(
+    config.positionsUrl ?? `${config.treeUrl}/${POSITIONS_DIR}`,
   );
   $("rev").textContent = ` · nixpkgs ${config.rev.slice(0, 7)}`;
 

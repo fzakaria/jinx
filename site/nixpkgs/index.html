@@ -10,8 +10,16 @@
     />
     <link rel="canonical" href="https://jinx.dev/nixpkgs/" />
     <link rel="icon" href="../favicon.svg" />
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)" />
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#16181d"
+      media="(prefers-color-scheme: dark)"
+    />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="jinx" />
@@ -29,11 +37,34 @@
     <header class="site">
       <h1>
         <a href="..">
-          <svg class="logo" viewBox="0 0 44 32" width="36" height="26" aria-hidden="true">
-            <g fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3c-4 0-4.5 2.5-4.5 6v3c0 2-1 3.2-3 4 2 .8 3 2 3 4v3c0 3.5.5 6 4.5 6" stroke="currentColor" opacity=".6" />
-              <path d="M32 3c4 0 4.5 2.5 4.5 6v3c0 2 1 3.2 3 4-2 .8-3 2-3 4v3c0 3.5-.5 6-4.5 6" stroke="currentColor" opacity=".6" />
-              <path d="M16 5.5l11.5 21M22.4 17.2l-6.4 9.3" stroke="var(--accent)" stroke-width="3.2" />
+          <svg
+            class="logo"
+            viewBox="0 0 44 32"
+            width="36"
+            height="26"
+            aria-hidden="true"
+          >
+            <g
+              fill="none"
+              stroke-width="2.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M12 3c-4 0-4.5 2.5-4.5 6v3c0 2-1 3.2-3 4 2 .8 3 2 3 4v3c0 3.5.5 6 4.5 6"
+                stroke="currentColor"
+                opacity=".6"
+              />
+              <path
+                d="M32 3c4 0 4.5 2.5 4.5 6v3c0 2 1 3.2 3 4-2 .8-3 2-3 4v3c0 3.5-.5 6-4.5 6"
+                stroke="currentColor"
+                opacity=".6"
+              />
+              <path
+                d="M16 5.5l11.5 21M22.4 17.2l-6.4 9.3"
+                stroke="var(--accent)"
+                stroke-width="3.2"
+              />
             </g>
           </svg>
           jinx
@@ -42,8 +73,15 @@
       </h1>
       <nav class="site">
         <a href="../">Playground</a>
-        <a href="../nixpkgs/" title="real nixpkgs, evaluated in the tab" class="active">nixpkgs</a>
-        <a href="../parity/" title="every nixpkgs attribute, jinx against Nix">Parity</a>
+        <a
+          href="../nixpkgs/"
+          title="real nixpkgs, evaluated in the tab"
+          class="active"
+          >nixpkgs</a
+        >
+        <a href="../parity/" title="every nixpkgs attribute, jinx against Nix"
+          >Parity</a
+        >
         <a href="../bench/">Benchmark</a>
         <a href="../docs/">Documentation</a>
         <a href="https://github.com/fzakaria/jinx">GitHub</a>
@@ -51,11 +89,14 @@
     </header>
 
     <p class="intro">
-      <strong class="lede">nixpkgs, evaluated in this tab.</strong> Every <code>.nix</code> file of
-      nixpkgs was compiled to a TypeScript module. Type an attribute and the page runs those modules,
-      fetched as the evaluation reaches them, and computes
+      <strong class="lede">nixpkgs, evaluated in this tab.</strong> Every
+      <code>.nix</code> file of nixpkgs was compiled to a TypeScript module.
+      Type an attribute and the page runs those modules, fetched as the
+      evaluation reaches them, and computes
       <code>pkgs.&lt;attr&gt;.drvPath</code> and its output path:
-      <span class="claim">the same store paths Nix computes, with no server.</span>
+      <span class="claim"
+        >the same store paths Nix computes, with no server.</span
+      >
       If Hydra built the output, trynix can boot it in another tab.
     </p>
 
@@ -78,12 +119,23 @@
           <ul id="suggestions" role="listbox" hidden></ul>
         </span>
       </label>
-      <button id="run" type="button" title="evaluate pkgs.<attr>.drvPath" disabled>Run</button>
+      <button
+        id="run"
+        type="button"
+        title="evaluate pkgs.<attr>.drvPath"
+        disabled
+      >
+        Run
+      </button>
       <span id="status" class="muted" aria-live="polite"></span>
     </div>
 
     <p id="activity" class="muted" aria-live="polite">
       <span id="set-time"></span><span id="fetch-activity"></span>
+    </p>
+    <p id="source-early" class="muted" hidden>
+      defined at
+      <a id="source-early-link" href="#" target="_blank" rel="noopener"></a>
     </p>
     <p id="fetching" hidden>
       <progress id="fetch-progress" max="1" value="0"></progress>
@@ -107,9 +159,12 @@
           <dd id="fetched"></dd>
         </dl>
         <p class="links">
-          <a id="trynix-link" href="#" target="_blank" rel="noopener">boot in trynix</a>
+          <a id="trynix-link" href="#" target="_blank" rel="noopener"
+            >boot in trynix</a
+          >
           <a id="ts-toggle" href="#">show TypeScript</a>
         </p>
+        <p id="ts-module" class="muted" hidden></p>
         <div id="typescript" class="editor" hidden></div>
       </section>
 

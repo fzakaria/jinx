@@ -12,8 +12,9 @@ steps:
 2. write `.jinx/config.json`, including the runtime ABI the modules were
    compiled against, which the site's worker checks;
 3. index the tree and the source (`tools/index-tree.ts`), write the
-   hot list (`tools/hot-files.sh`, hello's files) and the attribute
-   names;
+   hot list (`tools/hot-files.sh`, hello's files), the attribute
+   names, and where each is defined (`tools/attr-positions.ts`, a few
+   minutes);
 4. record what every top-level attribute reads beyond the hot set
    (`tools/attr-files.ts`), one evaluation per attribute. This is the
    slow step: about 2.5 hours on leviathan at 128 jobs.

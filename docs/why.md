@@ -29,7 +29,9 @@ $ flamegraph.pl stacks.folded > flamegraph.svg
 `tools/gen-nixpkgs-dts.ts` writes a declaration file for a package set:
 every attribute, `lib`'s functions with their documented signatures,
 and the shape of a derivation. With it, `pkgs.` completes and a
-misspelled attribute is an error before anything runs.
+misspelled attribute is an error before anything runs. With
+`--positions`, hovering an attribute shows the file and line that
+defines it, as a link VS Code opens.
 
 ![pkgs.neo completing to neovim, neofetch and the rest; pkgs.rigrep underlined as an error](./typed-nixpkgs.png)
 
@@ -38,6 +40,8 @@ misspelled attribute is an error before anything runs.
 Source maps put a breakpoint on a `.nix` line. Open the compiled tree
 in VS Code or Chrome DevTools, break in `pkgs/by-name/he/hello/package.nix`,
 and step into `stdenv.mkDerivation` as it builds the attribute set.
+A direct `import ./x.nix` names its compiled module in a type, so
+go-to-definition follows it across the tree.
 
 ```console
 $ node --inspect-brk --enable-source-maps src/cli/main.ts eval hello.nix
