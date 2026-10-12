@@ -1,69 +1,70 @@
 # Tracking nixpkgs
 
-jinx's compiler is small; its product is the compiled nixpkgs. This
-document is how that product is kept current, in the pattern of
-[nixpkgs-multiverse], [omniflake] and [omnibin]: a scheduled workflow
-that does the work and commits the result, and a status block in the
-README that the workflow rewrites.
+The compiler is small; the product is the compiled nixpkgs. This is
+how that product is kept current: a workflow that does the work and
+commits the result, as [nixpkgs-multiverse], [omniflake] and [omnibin]
+do.
 
 ## What is published
 
-A second repository, `fzakaria/jinx-nixpkgs`, holds the compiled tree
-for a sequence of nixpkgs revisions. `tools/publish-nixpkgs.sh <rev>
-<dir>` builds one: the 45,000 `.ts` modules and their source maps,
-compiled with `--vendor-runtime` so the tree stands alone, and
-`.jinx/config.json` naming the nixpkgs commit, its NAR hash and the jinx
-commit that compiled it. The source tree is not copied; the config
-points at `./nixpkgs`, which the consumer provides (a symlink to the
-store path `nix flake prefetch` gives is enough). One commit per
-tracked nixpkgs commit. The largest module is
-`pkgs/development/haskell-modules/hackage-packages.ts` at 34 MB, under
-GitHub's limit but worth knowing about.
+[fzakaria/jinx-nixpkgs] holds the compiled tree, one commit per tracked
+nixpkgs revision. `tools/publish-nixpkgs.sh <rev> <dir> --parity
+<compare-dir>` builds one:
 
-Each commit also carries `parity/report.md` and `parity/joined.tsv.gz`
-from the run against nix-eval-jobs for that revision
-([verification.md](./verification.md)), and `parity/history.json` with
-the counts of every revision published so far. The README of
-`jinx-nixpkgs` is written from these by `tools/nixpkgs-readme.ts`: a
-status table for the current revision and a history table with one row
-per revision, so the repository's front page says what it holds and how
-it compares with Nix. `.jinx/tree-index.json` and `.jinx/src-index.json`
-list every path of the tree and of the source (`tools/index-tree.ts`),
-which is what lets the site's nixpkgs page evaluate the tree by fetching
-files one at a time from `raw.githubusercontent.com`;
-`site/nixpkgs/config.json` names the commit it reads
-(`tools/site-nixpkgs-config.ts`).
+- the 45,000 `.ts` modules and their source maps, compiled with
+  `--vendor-runtime` so the tree stands alone;
+- `.jinx/config.json` naming the nixpkgs commit, its NAR hash and the
+  jinx commit that compiled it. The source tree is not copied; the
+  config points at `./nixpkgs`, which the consumer provides (a symlink
+  to the store path from `nix flake prefetch` is enough);
+- `.jinx/tree-index.json` and `.jinx/src-index.json`, every path of the
+  tree and of the source (`tools/index-tree.ts`), which let the site's
+  nixpkgs page evaluate the tree by fetching files one at a time from
+  `raw.githubusercontent.com`;
+- `parity/report.md` and `parity/joined.tsv.gz` from the run against
+  nix-eval-jobs on that revision ([verification.md](./verification.md)),
+  and `parity/history.json` with the counts of every revision so far;
+- the README, written from those by `tools/nixpkgs-readme.ts`: a status
+  table for the current revision and a history table with one row per
+  revision.
+
+The largest module is `pkgs/development/haskell-modules/hackage-packages.ts`
+at 42 MB, under GitHub's 100 MB limit and over jsDelivr's 20 MB, which
+is why the site reads from `raw.githubusercontent.com`.
+
+The tree lives in its own repository because it is 45,000 files that
+change with every nixpkgs commit; keeping it out of `jinx` keeps the
+compiler small enough to clone and review.
 
 Still to add: `stats.json` with files compiled, time to compile, and
 time and memory to evaluate on each side.
 
-Why a separate repository: the compiled tree is 41,000 files and grows
-with every commit, and its history is nixpkgs' history. Keeping it out
-of the compiler's repository keeps `jinx` small enough to clone and
-review.
+## Serving the tree locally
+
+`jinx-nixpkgs` is an input of the flake. `nix build .#site-local`
+builds the site with the compiled tree and the nixpkgs source linked
+in and `nixpkgs/config.json` pointing at them, so `nix run .#serve`
+serves the nixpkgs page from the store with no network. A revision
+that is not pushed yet: `--override-input jinx-nixpkgs path:../jinx-nixpkgs`.
 
 ## How it is kept current
 
-`update.yml` in the compiler's repository runs on a schedule and on
-demand:
+`update.yml` in the jinx repository, on demand (and on a schedule once
+leviathan is registered as a self-hosted runner; the parity run needs
+hours of cores and a quarter terabyte of memory):
 
-1. Resolve the nixpkgs revision to track: the `nixos-unstable` channel
-   tip, which is what Hydra has already evaluated and cache.nixos.org
-   already holds, so a parity mismatch is never confused with a build
-   failure.
-2. Compile it and run the parity comparison. This is the expensive step
-   and it does not fit GitHub's runners; it runs on a self-hosted runner
-   on leviathan, where nix-eval-jobs and jinx each get the machine for a
-   while.
-3. Commit the tree and the report to `jinx-nixpkgs` on top of the
-   earlier revisions, and point `site/nixpkgs/config.json` at the new
-   commit. Rewriting the status block in jinx's own README is still to
-   be done by hand.
+1. Resolve the revision to track: the `nixos-unstable` channel tip,
+   which Hydra has evaluated and cache.nixos.org holds, so a parity
+   mismatch is never a build failure.
+2. Compile it and run the parity comparison.
+3. Clone `jinx-nixpkgs`, publish into the checkout, commit on top of the
+   earlier revisions and push.
+4. Point `site/nixpkgs/config.json` at the new commit and commit that
+   to jinx. The status block in jinx's README is still updated by hand.
 
-The push into `jinx-nixpkgs` authenticates with a deploy key: the public
-half is registered on `jinx-nixpkgs` with write access, the private half
-is the `JINX_NIXPKGS_DEPLOY_KEY` secret on `jinx`. Both are set from the
-CLI:
+The push authenticates with a deploy key: the public half registered
+on `jinx-nixpkgs` with write access, the private half the
+`JINX_NIXPKGS_DEPLOY_KEY` secret on `jinx`:
 
 ```console
 $ ssh-keygen -t ed25519 -N "" -C "jinx update.yml" -f jinx-nixpkgs-deploy
@@ -73,18 +74,13 @@ $ gh secret set JINX_NIXPKGS_DEPLOY_KEY --repo fzakaria/jinx < jinx-nixpkgs-depl
 $ rm jinx-nixpkgs-deploy jinx-nixpkgs-deploy.pub
 ```
 
-Starting point: the revision current when the project started. Then
-each channel bump. The channel moves a few times a week, which is the
-cadence of commits.
+## Regression testing
 
-## Keeping the compiler honest
+Every tracked revision is a regression test for the compiler. A jinx
+change that lowers the parity count on any revision is a regression,
+and the report says which attribute and why.
 
-Every tracked revision is also a regression test for the compiler. A
-jinx change that lowers the parity count on any tracked revision is a
-regression, and the report says which attribute and why. The parity
-history across revisions is the project's progress chart, and the site
-([ideas.md](./ideas.md)) renders it.
-
+[fzakaria/jinx-nixpkgs]: https://github.com/fzakaria/jinx-nixpkgs
 [nixpkgs-multiverse]: https://github.com/fzakaria/nixpkgs-multiverse
 [omniflake]: https://github.com/fzakaria/omniflake
 [omnibin]: https://github.com/fzakaria/omnibin
