@@ -37,11 +37,17 @@
         nativeBuildInputs = [
           jinx
           pkgs.nodejs_24
+          pkgs.bash
+          pkgs.jq
         ];
       }
       ''
         cd ${self}
         export JINX_CACHE=$TMPDIR/cache
+        export HOME=$TMPDIR
+        # One case by hand first, with its stderr, so a broken adapter is
+        # diagnosed in this log rather than counted as a thousand failures.
+        JINX_MAIN=${jinx}/lib/jinx/src/cli/main.ts tools/conformance-adapter.sh parse ${nix-conformance}/lang/parse-okay-1.nix || echo "adapter exit $?"
         jinx test-conformance ${nix-conformance} --floor tests/conformance/expected.json
         touch $out
       '';
