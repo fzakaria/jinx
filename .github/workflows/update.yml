@@ -1,0 +1,58 @@
+# Track nixpkgs: compile the current nixos-unstable with jinx, run the
+# parity comparison against nix-eval-jobs, publish the tree and the
+# report to the jinx-nixpkgs repository, and rewrite the status block in
+# the README (docs/tracking-nixpkgs.md).
+#
+# The parity run needs hours of cores and a quarter terabyte of memory,
+# which no hosted runner has; this runs on a self-hosted runner. Until one
+# is registered the workflow is manual only.
+name: update nixpkgs
+
+on:
+  workflow_dispatch:
+    inputs:
+      rev:
+        description: "nixpkgs commit to track (default: the nixos-unstable channel)"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-nixpkgs
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: [self-hosted, leviathan]
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the revision
+        id: rev
+        run: |
+          rev="${{ inputs.rev }}"
+          if [ -z "$rev" ]; then
+            rev=$(nix flake prefetch github:NixOS/nixpkgs/nixos-unstable --json | jq -r .locked.rev)
+          fi
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+
+      - name: Compile and compare
+        run: |
+          nixpkgs=$(nix flake prefetch "github:NixOS/nixpkgs/${{ steps.rev.outputs.rev }}" --json | jq -r .storePath)
+          nix develop -c bash -c "PATH=\$PATH:$(nix build --no-link --print-out-paths .#jinx)/bin tools/parity.sh $nixpkgs --out work/parity"
+
+      - name: Publish the tree
+        env:
+          JINX_NIXPKGS_TOKEN: ${{ secrets.JINX_NIXPKGS_TOKEN }}
+        run: |
+          nix develop -c tools/publish-nixpkgs.sh "${{ steps.rev.outputs.rev }}" work/jinx-nixpkgs
+          mkdir -p work/jinx-nixpkgs/parity
+          cp work/parity/compare/report.md work/jinx-nixpkgs/parity/
+          gzip -c work/parity/compare/joined.tsv > work/jinx-nixpkgs/parity/joined.tsv.gz
+          cd work/jinx-nixpkgs
+          git init -q && git add -A
+          git -c user.name=jinx -c user.email=jinx@jinx.dev commit -qm "Transpile nixpkgs ${{ steps.rev.outputs.rev }}"
+          git push -q "https://x-access-token:${JINX_NIXPKGS_TOKEN}@github.com/fzakaria/jinx-nixpkgs" HEAD:main

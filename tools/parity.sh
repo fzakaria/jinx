@@ -5,17 +5,24 @@
 #   tools/parity.sh <nixpkgs> [--workers N] [--system x86_64-linux] [--out work/parity]
 #
 # Produces, under --out:
-#   nix.jsonl     nix-eval-jobs output
-#   jinx.jsonl    jinx eval-jobs output
-#   report.md     the table and the first differing attribute per cause
+#   nix.jsonl      nix-eval-jobs output
+#   jinx.jsonl     jinx eval-jobs output
+#   compare/       report.md, joined.tsv, jinx-errors.txt, differ.tsv, rerun.txt
 #
 # nixpkgs' own CI configuration is used for both sides so the attribute
-# set is the one Hydra evaluates: allowAliases = false, allowUnfree =
-# true, checkMeta = true, inHydra = true (ci/eval/outpaths.nix).
+# set is the one Hydra evaluates (ci/eval/outpaths.nix: allowAliases =
+# false, allowUnfree = true, checkMeta = true, inHydra = true), and both
+# run impurely in the same environment, since a few derivations embed
+# getEnv. After a fix, `jinx eval-jobs --only compare/rerun.txt` re-runs
+# the flagged attributes alone and tools/parity-compare.sh re-joins.
+#
+# Sized for a large machine: nix-eval-jobs takes about 4 GB a worker and
+# jinx about 5; 32 workers of each fit in 250 GB and finish in under half
+# an hour each.
 set -euo pipefail
 
 nixpkgs=""
-workers="$(nproc)"
+workers="32"
 system="x86_64-linux"
 out="work/parity"
 while [ $# -gt 0 ]; do
@@ -33,27 +40,19 @@ fi
 nixpkgs="$(realpath "$nixpkgs")"
 mkdir -p "$out"
 here="$(cd "$(dirname "$0")/.." && pwd)"
+ulimit -s unlimited 2>/dev/null || true
 
-# The expression both evaluators see: nixpkgs' outpaths.nix if the
-# checkout has it, else the equivalent configuration spelled out.
+# The expression both evaluators see.
 expr="$out/outpaths.nix"
 if [ -f "$nixpkgs/ci/eval/outpaths.nix" ]; then
-  cat > "$expr" <<NIX
-import $nixpkgs/ci/eval/outpaths.nix { path = $nixpkgs; }
-NIX
+  printf 'import %s/ci/eval/outpaths.nix { path = %s; }\n' "$nixpkgs" "$nixpkgs" > "$expr"
 else
-  cat > "$expr" <<NIX
-import $nixpkgs/pkgs/top-level/release-outpaths.nix {
-  path = $nixpkgs;
-  checkMeta = true;
-  systems = [ "$system" ];
-}
-NIX
+  printf 'import %s/pkgs/top-level/release-outpaths.nix { path = %s; checkMeta = true; systems = [ "%s" ]; }\n' "$nixpkgs" "$nixpkgs" "$system" > "$expr"
 fi
 
 echo "== nix-eval-jobs ($workers workers)" >&2
 start=$(date +%s)
-nix-eval-jobs --workers "$workers" --max-memory-size 8192 --force-recurse "$expr" > "$out/nix.jsonl" || true
+nix-eval-jobs --workers "$workers" --max-memory-size 4096 --force-recurse "$expr" > "$out/nix.jsonl" || true
 echo "nix-eval-jobs: $(( $(date +%s) - start ))s, $(wc -l < "$out/nix.jsonl") lines" >&2
 
 echo "== jinx compile" >&2
@@ -63,34 +62,8 @@ echo "compile: $(( $(date +%s) - start ))s" >&2
 
 echo "== jinx eval-jobs ($workers workers)" >&2
 start=$(date +%s)
-jinx eval-jobs "$expr" --workers "$workers" --system "$system" --cache "$out/cache" > "$out/jinx.jsonl" || true
+jinx eval-jobs "$expr" --workers "$workers" --max-heap 5000 --impure --system "$system" --tree "$out/tree" --cache "$out/cache" > "$out/jinx.jsonl" || true
 echo "jinx: $(( $(date +%s) - start ))s, $(wc -l < "$out/jinx.jsonl") lines" >&2
 
 echo "== compare" >&2
-jq -r 'select(.attr != null) | [.attr, (.drvPath // ("ERROR: " + (.error // "")))] | @tsv' "$out/nix.jsonl" | sort > "$out/nix.tsv"
-jq -r 'select(.attr != null) | [.attr, (.drvPath // ("ERROR: " + (.error // "")))] | @tsv' "$out/jinx.jsonl" | sort > "$out/jinx.tsv"
-join -t $'\t' -a1 -a2 -e MISSING -o 0,1.2,2.2 "$out/nix.tsv" "$out/jinx.tsv" > "$out/joined.tsv"
-{
-  echo "# Parity report"
-  echo
-  echo "| outcome | attributes |"
-  echo "| --- | --- |"
-  awk -F'\t' '
-    { n++ }
-    $2 == $3 && $2 !~ /^ERROR/ { same++ ; next }
-    $2 ~ /^ERROR/ && $3 ~ /^ERROR/ { botherr++ ; next }
-    $2 ~ /^ERROR/ { nixerr++ ; next }
-    $3 ~ /^ERROR/ { jinxerr++ ; if (!shownj[1]++) print "jinx-error example:", $1, $3 > "/dev/stderr"; next }
-    $3 == "MISSING" { missing++ ; next }
-    { differ++ ; if (!shownd[1]++) print "differ example:", $1, $2, $3 > "/dev/stderr" }
-    END {
-      printf "| identical | %d |\n", same
-      printf "| differ | %d |\n", differ
-      printf "| jinx error, nix ok | %d |\n", jinxerr
-      printf "| nix error, jinx ok | %d |\n", nixerr
-      printf "| both error | %d |\n", botherr
-      printf "| missing from jinx | %d |\n", missing
-      printf "| total | %d |\n", n
-    }' "$out/joined.tsv"
-} > "$out/report.md"
-cat "$out/report.md"
+"$here/tools/parity-compare.sh" "$out/nix.jsonl" "$out/jinx.jsonl" "$out/compare"
