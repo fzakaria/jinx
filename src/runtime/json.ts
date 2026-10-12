@@ -158,7 +158,7 @@ function serialiseList(list: readonly Lazy[], state: SerialiseState): void {
 function serialiseAttrs(attrs: Attrs, state: SerialiseState): void {
   // An attrset with `__toString` serialises as the string the function
   // returns (Nix's tryAttrsToString).
-  if (Object.hasOwn(attrs, TO_STRING_ATTR)) {
+  if (hasAttr(attrs, TO_STRING_ATTR)) {
     const s = state.hooks.applyToString(attrs);
     addContext(state, strContext(s));
     state.parts.push(jsonQuote(strValue(s)));
@@ -167,7 +167,7 @@ function serialiseAttrs(attrs: Attrs, state: SerialiseState): void {
 
   // An attrset with `outPath` (a derivation, typically) serialises as
   // that attribute's value, whatever its type.
-  if (Object.hasOwn(attrs, OUT_PATH_ATTR)) {
+  if (hasAttr(attrs, OUT_PATH_ATTR)) {
     serialise(getAttr(attrs, OUT_PATH_ATTR) as Lazy, state);
     return;
   }

@@ -200,7 +200,7 @@ function printAttrs(attrs: Attrs, state: PrintState): void {
 // Nix's EvalState::isDerivation: the `type` attribute, forced, is the
 // string "derivation".
 function isDerivation(attrs: Attrs): boolean {
-  if (!Object.hasOwn(attrs, TYPE_ATTR)) {
+  if (!hasAttr(attrs, TYPE_ATTR)) {
     return false;
   }
   const type = force(getAttr(attrs, TYPE_ATTR) as Lazy);
@@ -209,7 +209,7 @@ function isDerivation(attrs: Attrs): boolean {
 
 // A string-valued attribute, forced, or null when missing or not a string.
 function stringAttr(attrs: Attrs, name: string): string | null {
-  if (!Object.hasOwn(attrs, name)) {
+  if (!hasAttr(attrs, name)) {
     return null;
   }
   const v = force(getAttr(attrs, name) as Lazy);
