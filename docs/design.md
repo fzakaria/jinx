@@ -250,10 +250,20 @@ Nix per attribute and the design leaves three ways to win:
 A Nix evaluation recurses deeply, so the evaluator runs in a worker
 thread with a large stack rather than the main thread's default.
 
+## Source maps
+
+Every compiled module has a Source Map v3 beside it (`x.ts.map`). The
+emitter stamps the start of each expression with its Nix position as it
+writes, and a final pass strips the stamps and records where they
+landed (`src/compiler/sourcemap.ts`). With `node --enable-source-maps`
+a stack trace through compiled nixpkgs names `.nix` files and lines, a
+profiler attributes time to Nix functions, and an editor puts a
+breakpoint on a Nix line. The playground on the site uses the same maps
+to connect the two panes.
+
 ## What is not here yet
 
-Source maps from the emitted TypeScript back to Nix positions, so a
-stack trace or a profile names the `.nix` line; `unsafeGetAttrPos`,
-which nixpkgs uses for `meta.position` (not part of any derivation);
-`scopedImport`; content-addressed and impure derivations; and the
-strictness analysis above. [roadmap.md](./roadmap.md) orders them.
+`unsafeGetAttrPos`, which nixpkgs uses for `meta.position` (not part of
+any derivation); `scopedImport`; content-addressed and impure
+derivations; and the strictness analysis above. [roadmap.md](./roadmap.md)
+orders them.

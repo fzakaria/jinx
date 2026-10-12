@@ -31,10 +31,18 @@
   # nix-conformance: the tally must not regress below the number recorded in
   # tests/conformance/expected.json. A pass that starts failing is an error; a
   # new pass is reported and the file is updated by hand so the floor rises.
-  conformance = pkgs.runCommand "jinx-conformance" { nativeBuildInputs = [ jinx ]; } ''
-    cd ${self}
-    export JINX_CACHE=$TMPDIR/cache
-    jinx test-conformance ${nix-conformance} --floor tests/conformance/expected.json
-    touch $out
-  '';
+  conformance =
+    pkgs.runCommand "jinx-conformance"
+      {
+        nativeBuildInputs = [
+          jinx
+          pkgs.nodejs_24
+        ];
+      }
+      ''
+        cd ${self}
+        export JINX_CACHE=$TMPDIR/cache
+        jinx test-conformance ${nix-conformance} --floor tests/conformance/expected.json
+        touch $out
+      '';
 }

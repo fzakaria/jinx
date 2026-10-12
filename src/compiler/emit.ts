@@ -24,12 +24,23 @@ import type {
 import { formatPos } from "../syntax/ast.ts";
 import { BUILTIN_ARITY, GLOBALS } from "./builtins-table.ts";
 import { type Binding, Scope, isIdentifierName } from "./scope.ts";
+import { encodeSourceMap, extractMappings, marker } from "./sourcemap.ts";
 
 export interface EmitOptions {
   // The Nix file being compiled, absolute.
   readonly file: string;
   // The import specifier for the runtime, as it should appear in the module.
   readonly runtimeImport: string;
+  // Produce a source map; `sourceMapUrl` is what the module points at.
+  readonly sourceMap?: {
+    readonly url: string;
+    readonly sourceRelative: string;
+  };
+}
+
+export interface Emitted {
+  readonly typescript: string;
+  readonly sourceMap: string | null;
 }
 
 export class CompileError extends Error {
@@ -54,8 +65,25 @@ for (const [name, arity] of BUILTIN_ARITY) {
 }
 
 export function emitModule(expr: Expr, opts: EmitOptions): string {
+  return emit(expr, opts).typescript;
+}
+
+export function emit(expr: Expr, opts: EmitOptions): Emitted {
   const e = new Emitter(opts);
-  return e.module(expr);
+  const marked = e.module(expr);
+  const { text, mappings } = extractMappings(marked);
+  if (opts.sourceMap === undefined) {
+    return { typescript: text, sourceMap: null };
+  }
+  const name = opts.file.slice(opts.file.lastIndexOf("/") + 1);
+  return {
+    typescript: `${text}//# sourceMappingURL=${opts.sourceMap.url}\n`,
+    sourceMap: encodeSourceMap(
+      name.replace(/\.nix$/, ".ts"),
+      opts.sourceMap.sourceRelative,
+      mappings,
+    ),
+  };
 }
 
 class Emitter {
@@ -142,8 +170,14 @@ class Emitter {
     return `nix.thunk(() => ${arrowBody(this.strict(e, scope, depth))})`;
   }
 
-  // A Value in weak head normal form.
+  // A Value in weak head normal form, stamped with where it came from.
   strict(e: Expr, scope: Scope, depth: number): string {
+    return (
+      marker(e.pos.line, e.pos.column) + this.strictUnmarked(e, scope, depth)
+    );
+  }
+
+  private strictUnmarked(e: Expr, scope: Scope, depth: number): string {
     switch (e.kind) {
       case "var":
         return this.varStrict(e.name, e.pos, scope);

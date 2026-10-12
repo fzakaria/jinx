@@ -5,8 +5,9 @@
 //
 // Every hasher is a Merkle-Damgard construction: update() buffers input up to
 // one block and compresses whole blocks as they fill, digest() appends the
-// 0x80 / zero / bit-length padding and compresses the tail. sha256 (the hot
-// path) uses plain 32-bit integer arithmetic; sha512 uses BigInt.
+// 0x80 / zero / bit-length padding and compresses the tail. All four use
+// plain 32-bit integer arithmetic; sha512 holds each 64-bit word as a hi/lo
+// pair, since BigInt arithmetic measured ~80x slower.
 
 export type HashAlgorithm = "md5" | "sha1" | "sha256" | "sha512";
 
@@ -23,7 +24,6 @@ const BYTES_PER_WORD32 = 4;
 const BYTES_PER_WORD64 = 8;
 const BITS_PER_BYTE = 8;
 const PADDING_MARKER = 0x80;
-const MASK64 = (1n << 64n) - 1n;
 
 const textEncoder = new TextEncoder();
 
@@ -95,10 +95,14 @@ abstract class BlockHasher implements Hash {
     }
 
     // Compress whole blocks straight out of the input without copying.
-    const wholeEnd =
-      offset + Math.floor((bytes.length - offset) / this.blockSize) * this.blockSize;
+    const wholeBlocks = Math.floor((bytes.length - offset) / this.blockSize);
+    const wholeEnd = offset + wholeBlocks * this.blockSize;
     if (wholeEnd > offset) {
-      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      const view = new DataView(
+        bytes.buffer,
+        bytes.byteOffset,
+        bytes.byteLength,
+      );
       for (; offset < wholeEnd; offset += this.blockSize) {
         this.compress(view, offset);
       }
@@ -407,7 +411,8 @@ class Sha256 extends BlockHasher {
 
 // ---------------------------------------------------------------------------
 // SHA-512 (FIPS 180-4): 128-byte blocks, big-endian 64-bit words, 80 rounds.
-// Arithmetic is done in BigInt masked to 64 bits.
+// Each 64-bit word is kept as two 32-bit halves at even (hi) and odd (lo)
+// indices of a Uint32Array; additions carry from lo into hi by hand.
 
 const SHA512_BLOCK_BYTES = 128;
 const SHA512_LENGTH_FIELD_BYTES = 16;
@@ -446,13 +451,42 @@ const SHA512_K = BigUint64Array.of(
   0x5fcb6fab3ad6faecn, 0x6c44198c4a475817n,
 );
 
-function rotr64(x: bigint, n: bigint): bigint {
-  return ((x >> n) | (x << (64n - n))) & MASK64;
+const SHA512_SCHEDULE_WORDS = 80;
+const HALF_WORD_BITS = 32;
+
+// Split 64-bit constants into interleaved hi/lo 32-bit halves.
+function splitWords64(words: BigUint64Array): Uint32Array {
+  const out = new Uint32Array(words.length * 2);
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]!;
+    out[2 * i] = Number(w >> 32n);
+    out[2 * i + 1] = Number(w & 0xffffffffn);
+  }
+  return out;
+}
+
+const SHA512_INIT32 = splitWords64(SHA512_INIT);
+const SHA512_K32 = splitWords64(SHA512_K);
+
+// High and low halves of (hi:lo) rotated right by n, for 0 < n < 32. A
+// rotation by n >= 32 is the same call with the halves swapped and n - 32.
+function rotr64Hi(hi: number, lo: number, n: number): number {
+  return (hi >>> n) | (lo << (HALF_WORD_BITS - n));
+}
+
+function rotr64Lo(hi: number, lo: number, n: number): number {
+  return (lo >>> n) | (hi << (HALF_WORD_BITS - n));
+}
+
+// Carry out of a 32-bit addition: 1 when the unsigned sum wrapped below an
+// addend, else 0.
+function carry32(sum: number, addend: number): number {
+  return (sum >>> 0) < (addend >>> 0) ? 1 : 0;
 }
 
 class Sha512 extends BlockHasher {
-  private readonly state = BigUint64Array.from(SHA512_INIT);
-  private readonly schedule = new BigUint64Array(80);
+  private readonly state = Uint32Array.from(SHA512_INIT32);
+  private readonly schedule = new Uint32Array(SHA512_SCHEDULE_WORDS * 2);
 
   constructor() {
     super(SHA512_BLOCK_BYTES, SHA512_LENGTH_FIELD_BYTES, false);
@@ -460,60 +494,136 @@ class Sha512 extends BlockHasher {
 
   protected override compress(view: DataView, offset: number): void {
     const W = this.schedule;
-    for (let i = 0; i < 16; i++) {
-      W[i] = view.getBigUint64(offset + i * BYTES_PER_WORD64, false);
+    for (let i = 0; i < 32; i++) {
+      W[i] = view.getUint32(offset + i * BYTES_PER_WORD32, false);
     }
-    for (let i = 16; i < 80; i++) {
-      const w15 = W[i - 15]!;
-      const w2 = W[i - 2]!;
-      const s0 = rotr64(w15, 1n) ^ rotr64(w15, 8n) ^ (w15 >> 7n);
-      const s1 = rotr64(w2, 19n) ^ rotr64(w2, 61n) ^ (w2 >> 6n);
-      W[i] = (W[i - 16]! + s0 + W[i - 7]! + s1) & MASK64;
+    for (let i = 16; i < SHA512_SCHEDULE_WORDS; i++) {
+      const x15h = W[2 * (i - 15)]!;
+      const x15l = W[2 * (i - 15) + 1]!;
+      const x2h = W[2 * (i - 2)]!;
+      const x2l = W[2 * (i - 2) + 1]!;
+      const x16h = W[2 * (i - 16)]!;
+      const x16l = W[2 * (i - 16) + 1]!;
+      const x7h = W[2 * (i - 7)]!;
+      const x7l = W[2 * (i - 7) + 1]!;
+
+      // sigma0 = rotr1 ^ rotr8 ^ shr7; sigma1 = rotr19 ^ rotr61 ^ shr6.
+      const s0h =
+        rotr64Hi(x15h, x15l, 1) ^ rotr64Hi(x15h, x15l, 8) ^ (x15h >>> 7);
+      const s0l =
+        rotr64Lo(x15h, x15l, 1) ^
+        rotr64Lo(x15h, x15l, 8) ^
+        ((x15l >>> 7) | (x15h << 25));
+      const s1h =
+        rotr64Hi(x2h, x2l, 19) ^ rotr64Hi(x2l, x2h, 29) ^ (x2h >>> 6);
+      const s1l =
+        rotr64Lo(x2h, x2l, 19) ^
+        rotr64Lo(x2l, x2h, 29) ^
+        ((x2l >>> 6) | (x2h << 26));
+
+      // W[i] = W[i-16] + sigma0 + W[i-7] + sigma1, carrying lo into hi.
+      let lo = (x16l + s0l) | 0;
+      let hi = (x16h + s0h + carry32(lo, x16l)) | 0;
+      let prev = lo;
+      lo = (lo + x7l) | 0;
+      hi = (hi + x7h + carry32(lo, prev)) | 0;
+      prev = lo;
+      lo = (lo + s1l) | 0;
+      hi = (hi + s1h + carry32(lo, prev)) | 0;
+      W[2 * i] = hi;
+      W[2 * i + 1] = lo;
     }
 
-    let a = this.state[0]!;
-    let b = this.state[1]!;
-    let c = this.state[2]!;
-    let d = this.state[3]!;
-    let e = this.state[4]!;
-    let f = this.state[5]!;
-    let g = this.state[6]!;
-    let h = this.state[7]!;
+    let ah = this.state[0]!;
+    let al = this.state[1]!;
+    let bh = this.state[2]!;
+    let bl = this.state[3]!;
+    let ch = this.state[4]!;
+    let cl = this.state[5]!;
+    let dh = this.state[6]!;
+    let dl = this.state[7]!;
+    let eh = this.state[8]!;
+    let el = this.state[9]!;
+    let fh = this.state[10]!;
+    let fl = this.state[11]!;
+    let gh = this.state[12]!;
+    let gl = this.state[13]!;
+    let hh = this.state[14]!;
+    let hl = this.state[15]!;
 
-    for (let i = 0; i < 80; i++) {
-      const S1 = rotr64(e, 14n) ^ rotr64(e, 18n) ^ rotr64(e, 41n);
-      const ch = (e & f) ^ (~e & MASK64 & g);
-      const t1 = (h + S1 + ch + SHA512_K[i]! + W[i]!) & MASK64;
-      const S0 = rotr64(a, 28n) ^ rotr64(a, 34n) ^ rotr64(a, 39n);
-      const maj = (a & b) ^ (a & c) ^ (b & c);
-      const t2 = (S0 + maj) & MASK64;
-      h = g;
-      g = f;
-      f = e;
-      e = (d + t1) & MASK64;
-      d = c;
-      c = b;
-      b = a;
-      a = (t1 + t2) & MASK64;
+    for (let i = 0; i < SHA512_SCHEDULE_WORDS; i++) {
+      // Sigma1 = rotr14 ^ rotr18 ^ rotr41; ch = (e & f) ^ (~e & g).
+      const S1h =
+        rotr64Hi(eh, el, 14) ^ rotr64Hi(eh, el, 18) ^ rotr64Hi(el, eh, 9);
+      const S1l =
+        rotr64Lo(eh, el, 14) ^ rotr64Lo(eh, el, 18) ^ rotr64Lo(el, eh, 9);
+      const chh = (eh & fh) ^ (~eh & gh);
+      const chl = (el & fl) ^ (~el & gl);
+
+      // t1 = h + Sigma1 + ch + K[i] + W[i].
+      let t1l = (hl + S1l) | 0;
+      let t1h = (hh + S1h + carry32(t1l, hl)) | 0;
+      let prev = t1l;
+      t1l = (t1l + chl) | 0;
+      t1h = (t1h + chh + carry32(t1l, prev)) | 0;
+      prev = t1l;
+      t1l = (t1l + SHA512_K32[2 * i + 1]!) | 0;
+      t1h = (t1h + SHA512_K32[2 * i]! + carry32(t1l, prev)) | 0;
+      prev = t1l;
+      t1l = (t1l + W[2 * i + 1]!) | 0;
+      t1h = (t1h + W[2 * i]! + carry32(t1l, prev)) | 0;
+
+      // Sigma0 = rotr28 ^ rotr34 ^ rotr39; maj = (a&b) ^ (a&c) ^ (b&c).
+      const S0h =
+        rotr64Hi(ah, al, 28) ^ rotr64Hi(al, ah, 2) ^ rotr64Hi(al, ah, 7);
+      const S0l =
+        rotr64Lo(ah, al, 28) ^ rotr64Lo(al, ah, 2) ^ rotr64Lo(al, ah, 7);
+      const majh = (ah & bh) ^ (ah & ch) ^ (bh & ch);
+      const majl = (al & bl) ^ (al & cl) ^ (bl & cl);
+
+      // t2 = Sigma0 + maj.
+      const t2l = (S0l + majl) | 0;
+      const t2h = (S0h + majh + carry32(t2l, S0l)) | 0;
+
+      hh = gh;
+      hl = gl;
+      gh = fh;
+      gl = fl;
+      fh = eh;
+      fl = el;
+      el = (dl + t1l) | 0;
+      eh = (dh + t1h + carry32(el, dl)) | 0;
+      dh = ch;
+      dl = cl;
+      ch = bh;
+      cl = bl;
+      bh = ah;
+      bl = al;
+      al = (t1l + t2l) | 0;
+      ah = (t1h + t2h + carry32(al, t1l)) | 0;
     }
 
-    this.state[0] = (this.state[0]! + a) & MASK64;
-    this.state[1] = (this.state[1]! + b) & MASK64;
-    this.state[2] = (this.state[2]! + c) & MASK64;
-    this.state[3] = (this.state[3]! + d) & MASK64;
-    this.state[4] = (this.state[4]! + e) & MASK64;
-    this.state[5] = (this.state[5]! + f) & MASK64;
-    this.state[6] = (this.state[6]! + g) & MASK64;
-    this.state[7] = (this.state[7]! + h) & MASK64;
+    this.addToState(0, ah, al);
+    this.addToState(1, bh, bl);
+    this.addToState(2, ch, cl);
+    this.addToState(3, dh, dl);
+    this.addToState(4, eh, el);
+    this.addToState(5, fh, fl);
+    this.addToState(6, gh, gl);
+    this.addToState(7, hh, hl);
+  }
+
+  // state[word] += (hi:lo), with carry.
+  private addToState(word: number, hi: number, lo: number): void {
+    const oldLo = this.state[2 * word + 1]!;
+    const newLo = (oldLo + lo) | 0;
+    this.state[2 * word + 1] = newLo;
+    this.state[2 * word] =
+      (this.state[2 * word]! + hi + carry32(newLo, oldLo)) | 0;
   }
 
   protected override finalState(): Uint8Array {
-    const out = new Uint8Array(this.state.length * BYTES_PER_WORD64);
-    const view = new DataView(out.buffer);
-    for (let i = 0; i < this.state.length; i++) {
-      view.setBigUint64(i * BYTES_PER_WORD64, this.state[i]!, false);
-    }
-    return out;
+    return wordsToBytes(this.state, false);
   }
 }
 

@@ -18,7 +18,7 @@ import {
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "../syntax/parser.ts";
-import { emitModule } from "./emit.ts";
+import { emit, emitModule } from "./emit.ts";
 
 // Where the runtime lives in this checkout.
 export const RUNTIME_DIR = resolve(
@@ -104,15 +104,24 @@ export function compileFile(opts: TreeOptions, nixFile: string): string {
   );
   const src = readFileSync(file, "utf8");
   const ast = parse(src, file);
-  const ts = emitModule(ast, {
+  const base = out.slice(out.lastIndexOf("/") + 1);
+  // The map sits next to the module and names the Nix file relative to it.
+  const { typescript, sourceMap } = emit(ast, {
     file,
     runtimeImport:
       runtimeImport.startsWith("./") || runtimeImport.startsWith("../")
         ? runtimeImport
         : "./" + runtimeImport,
+    sourceMap: {
+      url: `${base}.map`,
+      sourceRelative: relative(dirname(out), file),
+    },
   });
   mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(out, ts);
+  writeFileSync(out, typescript);
+  if (sourceMap !== null) {
+    writeFileSync(`${out}.map`, sourceMap);
+  }
   return out;
 }
 

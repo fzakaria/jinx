@@ -15,9 +15,9 @@ In order. Each step has a test that says when it is done.
 4. Tracking. The `jinx-nixpkgs` repository and the update workflow
    ([tracking-nixpkgs.md](./tracking-nixpkgs.md)), one commit per
    channel bump with its parity report.
-5. Source maps. Stack traces, profiles and breakpoints name `.nix`
-   lines. `unsafeGetAttrPos` and `__curPos` come with it, which makes
-   `meta.position` match too.
+5. Positions. Source maps are in; `unsafeGetAttrPos` is next, which
+   makes `meta.position` match too, and the site's panes link through
+   the maps.
 6. Performance. Measure against Nix on the parity run, then strictness
    analysis in the emitter, then a startup snapshot of the evaluated
    fixpoint. The target is a full nixpkgs evaluation no slower than Nix

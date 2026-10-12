@@ -8,8 +8,9 @@
 //   jinx instantiate <file.nix> [-A a.b]     write the .drv closure to the store
 //   jinx eval-jobs <file.nix> [-A a.b] [--workers N]   nix-eval-jobs-style JSON lines
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { join, resolve } from "node:path";
 import { compileToString, compileTree } from "../compiler/compile.ts";
 import { DEFAULT_CACHE, evaluateFile, setup } from "./evaluate.ts";
 import { runCorpus } from "./corpus.ts";
@@ -221,8 +222,10 @@ function evalCmd(
   }
 }
 
-// Run the nix-conformance suite through the adapter, tallying passes
-// against a floor file.
+// Run the nix-conformance suite through the adapter and hold the tally to
+// a floor: `jinx test-conformance <suite> [--floor expected.json] [paths]`.
+// The suite's own runner is plain bash; its --json output ends with a
+// summary line, which is what is compared.
 function conformance(
   positional: string[],
   flags: Map<string, string | true>,
@@ -231,26 +234,59 @@ function conformance(
   if (suite === undefined) {
     usage();
   }
-  const { spawnSync } =
-    require("node:child_process") as typeof import("node:child_process");
-  const self = process.argv[1]!;
-  const adapter = join(process.cwd(), "tools", "conformance-adapter.sh");
+  const adapter = resolve(process.cwd(), "tools", "conformance-adapter.sh");
+  const cache =
+    process.env["JINX_CACHE"] ??
+    join(process.env["TMPDIR"] ?? "/tmp", "jinx-conformance");
   const r = spawnSync(
-    "nix",
-    ["run", `path:${suite}`, "--", adapter, "--json", ...positional.slice(1)],
-    { cwd: suite, encoding: "utf8", env: { ...process.env, JINX_MAIN: self } },
+    join(suite, "run"),
+    ["--json", adapter, ...positional.slice(1)],
+    {
+      cwd: suite,
+      encoding: "utf8",
+      maxBuffer: 1 << 28,
+      env: { ...process.env, JINX_MAIN: process.argv[1]!, JINX_CACHE: cache },
+    },
   );
-  process.stdout.write(r.stdout);
   process.stderr.write(r.stderr);
-  void flags;
-  void existsSync;
-  void readdirSync;
-  void writeFileSync;
-  void basename;
-  void resolve;
-  return r.status ?? 1;
+  const lines = r.stdout.trim().split("\n");
+  const last = lines[lines.length - 1] ?? "";
+  let summary: { pass: number; fail: number; skip: number };
+  try {
+    summary = (
+      JSON.parse(last) as {
+        summary: { pass: number; fail: number; skip: number };
+      }
+    ).summary;
+  } catch {
+    process.stderr.write(
+      `no summary in the runner's output:\n${r.stdout.slice(-2000)}\n`,
+    );
+    return 1;
+  }
+  process.stdout.write(
+    `conformance: ${summary.pass} pass, ${summary.fail} fail, ${summary.skip} skip\n`,
+  );
+  const floorFile = flags.get("floor");
+  if (typeof floorFile !== "string") {
+    return 0;
+  }
+  const floor = JSON.parse(readFileSync(floorFile, "utf8")) as { pass: number };
+  if (summary.pass < floor.pass) {
+    process.stdout.write(
+      `regression: ${summary.pass} passes is below the floor of ${floor.pass} in ${floorFile}\n`,
+    );
+    for (const l of lines.slice(0, -1).slice(0, 50)) {
+      process.stdout.write(l + "\n");
+    }
+    return 1;
+  }
+  if (summary.pass > floor.pass) {
+    process.stdout.write(
+      `${summary.pass - floor.pass} new passes: raise the floor in ${floorFile}\n`,
+    );
+  }
+  return 0;
 }
-
-const require = (await import("node:module")).createRequire(import.meta.url);
 
 process.exitCode = main(process.argv.slice(2));
