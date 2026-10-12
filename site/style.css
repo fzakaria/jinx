@@ -44,10 +44,23 @@ h1 a {
   color: inherit;
   text-decoration: none;
 }
+h1 a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+/* The logo rides on the title's baseline at the cap height of the text. */
+.logo {
+  flex: none;
+}
 .tagline {
   margin-left: 0.6rem;
   font-size: 0.95rem;
   font-weight: 400;
+}
+nav.site a.active {
+  color: var(--fg);
+  font-weight: 600;
 }
 
 /* The site header: the title on the left, the top-level destinations on the
@@ -320,4 +333,16 @@ footer {
   border-top: 1px solid var(--line);
   font-size: 13px;
   text-align: center;
+}
+/* The second footer line: a store path is a single 68-character token —
+   broken across lines it is unreadable and awkward to select. Hold it on
+   one line and let the font shrink instead. */
+#store {
+  margin-top: 0.3rem;
+}
+#store code {
+  font-size: min(12px, 2.1vw);
+  white-space: nowrap;
+  background: none;
+  padding: 0;
 }

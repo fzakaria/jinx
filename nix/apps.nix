@@ -45,20 +45,30 @@ in
 
   # Serve the built site, the tree the pages workflow deploys, on
   # http://localhost:8137 (`nix run .#serve -- <port>` for another). The
-  # module tree and the bundle are plain static files, so this is python's
-  # http.server rooted at the derivation. no-store because store paths
+  # module tree, the bundle and the docs are plain static files, so this is
+  # python's http.server rooted at the derivation. no-store because store paths
   # carry a 1970 mtime, and a 304 would keep a previous build's JS forever.
   serve = {
     type = "app";
     program = "${pkgs.writeShellScript "jinx-serve" ''
       exec ${pkgs.python3}/bin/python3 - "''${1:-8137}" <<'EOF'
-      import http.server, sys
+      import http.server, os, sys
 
       SITE = "${site}"
 
       class Handler(http.server.SimpleHTTPRequestHandler):
           def __init__(self, *args, **kwargs):
               super().__init__(*args, directory=SITE, **kwargs)
+
+          # GitHub Pages resolves an extensionless request onto <path>.html,
+          # which is how /docs/design serves design.html. Doing the same here
+          # keeps the docs' own links working in a local preview.
+          def send_head(self):
+              path, sep, query = self.path.partition("?")
+              local = self.translate_path(path)
+              if not os.path.exists(local) and os.path.isfile(local + ".html"):
+                  self.path = path + ".html" + sep + query
+              return super().send_head()
 
           def end_headers(self):
               self.send_header("Cache-Control", "no-store")

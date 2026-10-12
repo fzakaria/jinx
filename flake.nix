@@ -41,6 +41,10 @@
           # tsc only checks (nix/jinx.nix).
           jinx = import ./nix/jinx.nix { inherit pkgs self; };
           default = jinx;
+
+          # jinx.dev: the playground with the compiler and runtime bundled
+          # for the browser, and the rendered docs (nix/site.nix).
+          site = import ./nix/site.nix { inherit pkgs self; };
         }
       );
 
@@ -49,6 +53,7 @@
         import ./nix/apps.nix {
           pkgs = pkgsFor system;
           jinx = self.packages.${system}.jinx;
+          site = self.packages.${system}.site;
           inherit nix-conformance;
         }
       );

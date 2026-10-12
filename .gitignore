@@ -6,3 +6,7 @@ node_modules/
 out/
 work/
 .tsbuildinfo
+# Built by nix/site.nix and tools/build-site.sh: the browser bundle and
+# the rendered docs.
+site/js/jinx.js
+site/docs/

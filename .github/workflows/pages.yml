@@ -12,8 +12,11 @@ on:
     paths:
       - site/**
       - src/**
+      - docs/**
+      - README.md
       - nix/**
       - tools/build-site.sh
+      - tools/render-docs.py
       - flake.lock
       - .github/workflows/pages.yml
   workflow_dispatch:

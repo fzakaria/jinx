@@ -18,7 +18,7 @@ import {
   strValue,
 } from "../runtime/value.ts";
 import { app, forceStr } from "../runtime/ops.ts";
-import { copyPathToStore } from "../runtime/store.ts";
+import { copyPathToStore, pending } from "../runtime/store.ts";
 
 // The file name the snippet is compiled as.
 const SNIPPET_FILE = "/playground/default.nix";
@@ -69,7 +69,11 @@ export interface EvalResult {
 // by hand) and print its value.
 export function evaluate(typescript: string): EvalResult | Failure {
   const started = performance.now();
-  const before = new Set(derivations.keys());
+  // One snippet at a time: what the last run produced is forgotten, so
+  // the list below is exactly this run's derivations.
+  derivations.clear();
+  pending.clear();
+  const before = new Set<string>();
   try {
     const value = run(typescript);
     const printed = printValue(value);

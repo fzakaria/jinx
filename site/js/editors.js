@@ -159,7 +159,9 @@ function nixStreamParser() {
       }
       return tokenCode(stream, state);
     },
-    languageData: { commentTokens: { line: "#", block: { open: "/*", close: "*/" } } },
+    languageData: {
+      commentTokens: { line: "#", block: { open: "/*", close: "*/" } },
+    },
   };
 }
 
@@ -201,7 +203,13 @@ function darkHighlight(cm) {
     { tag: cm.tags.special(cm.tags.string), color: "#56b6c2" },
     { tag: cm.tags.comment, color: "#7f848e", fontStyle: "italic" },
     { tag: cm.tags.standard(cm.tags.name), color: "#e5c07b" },
-    { tag: [cm.tags.definition(cm.tags.name), cm.tags.function(cm.tags.variableName)], color: "#61afef" },
+    {
+      tag: [
+        cm.tags.definition(cm.tags.name),
+        cm.tags.function(cm.tags.variableName),
+      ],
+      color: "#61afef",
+    },
     { tag: cm.tags.propertyName, color: "#e06c75" },
     { tag: cm.tags.operator, color: "#56b6c2" },
     { tag: cm.tags.typeName, color: "#e5c07b" },
@@ -220,7 +228,10 @@ async function createCodemirror(parent, { language, readOnly, onChange }) {
 
   const themeFor = (dark) =>
     dark
-      ? [cm.EditorView.theme({}, { dark: true }), cm.syntaxHighlighting(darkHighlight(cm))]
+      ? [
+          cm.EditorView.theme({}, { dark: true }),
+          cm.syntaxHighlighting(darkHighlight(cm)),
+        ]
       : [];
 
   const darkQuery = window.matchMedia(DARK_QUERY);
@@ -244,7 +255,9 @@ async function createCodemirror(parent, { language, readOnly, onChange }) {
 
   // Follow the OS theme while the page is open.
   darkQuery.addEventListener("change", (e) => {
-    view.dispatch({ effects: themeCompartment.reconfigure(themeFor(e.matches)) });
+    view.dispatch({
+      effects: themeCompartment.reconfigure(themeFor(e.matches)),
+    });
   });
 
   return {
@@ -254,10 +267,16 @@ async function createCodemirror(parent, { language, readOnly, onChange }) {
       if (text === view.state.doc.toString()) {
         return;
       }
-      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: text },
+      });
     },
     setReadOnly(flag) {
-      view.dispatch({ effects: readOnlyCompartment.reconfigure(cm.EditorState.readOnly.of(flag)) });
+      view.dispatch({
+        effects: readOnlyCompartment.reconfigure(
+          cm.EditorState.readOnly.of(flag),
+        ),
+      });
       parent.classList.toggle("read-only", flag);
     },
     focus: () => view.focus(),

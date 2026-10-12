@@ -110,7 +110,10 @@ export interface Settings {
 export const settings: Settings = {
   currentSystem: "x86_64-linux",
   // stderr under node, the console in a browser.
-  log: (line) => (typeof process === "undefined" ? console.error(line) : process.stderr.write(line + "\n")),
+  log: (line) =>
+    typeof process === "undefined"
+      ? console.error(line)
+      : process.stderr.write(line + "\n"),
 };
 
 // The Nix this runtime mirrors.
@@ -793,10 +796,23 @@ def("listToAttrs", 1, (l) => {
   }
   return out;
 });
+// Iterate the smaller set and look up in the larger, as Nix does: this
+// is `callPackage` selecting a package's arguments out of all of pkgs.
 def("intersectAttrs", 2, (a, c) => {
   const x = forceAttrs(a);
   const y = forceAttrs(c);
   const out: Attrs = {};
+  // Count the left set (a function's formals: small) and only check
+  // whether the right one is bigger than that.
+  const nx = countKeys(x, Infinity);
+  if (countKeys(y, nx + 1) > nx) {
+    for (const k in x) {
+      if (hasOwn(y, k)) {
+        out[k] = y[k] as Lazy;
+      }
+    }
+    return out;
+  }
   for (const k in y) {
     if (hasOwn(x, k)) {
       out[k] = y[k] as Lazy;
@@ -804,6 +820,18 @@ def("intersectAttrs", 2, (a, c) => {
   }
   return out;
 });
+
+// The number of attributes, stopping at `limit`, without allocating a
+// key array.
+function countKeys(a: Attrs, limit: number): number {
+  let n = 0;
+  for (const _ in a) {
+    if (++n >= limit) {
+      return n;
+    }
+  }
+  return n;
+}
 def("catAttrs", 2, (name, l) => {
   const n = forceStringNoCtx(name);
   const out: Lazy[] = [];

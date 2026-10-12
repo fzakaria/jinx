@@ -17,6 +17,8 @@ const EXAMPLE_CUSTOM = "custom";
 const MAX_LOG_LINES = 200;
 const MILLIS_PRECISION = 1;
 
+const STORE_PATH = "__STORE_PATH__";
+
 const TAB_VALUE = "value";
 const TAB_JSON = "json";
 const TAB_DERIVATIONS = "derivations";
@@ -138,7 +140,8 @@ function renderResult(result) {
   value.textContent = result.printed;
   value.classList.remove("error");
 
-  $("json").textContent = result.json === null ? "(not representable as JSON)" : result.json;
+  $("json").textContent =
+    result.json === null ? "(not representable as JSON)" : result.json;
 
   const list = $("derivations");
   list.replaceChildren(...result.derivations.map(renderDerivation));
@@ -190,7 +193,10 @@ function compile({ overwrite = true } = {}) {
   if (!result.ok) {
     compiledOk = false;
     renderError(result.error);
-    setStatus(`compile error after ${formatMillis(performance.now() - started)}`, { error: true });
+    setStatus(
+      `compile error after ${formatMillis(performance.now() - started)}`,
+      { error: true },
+    );
     return false;
   }
   compiledOk = true;
@@ -208,7 +214,9 @@ function evaluate() {
   const total = performance.now() - started;
   if (!result.ok) {
     renderError(result.error);
-    setStatus(`evaluation failed after ${formatMillis(total)}`, { error: true });
+    setStatus(`evaluation failed after ${formatMillis(total)}`, {
+      error: true,
+    });
     return;
   }
   renderResult(result);
@@ -309,8 +317,16 @@ async function main() {
 
   setStatus("loading editors");
   [nixEditor, tsEditor] = await Promise.all([
-    createEditor($("nix-editor"), { language: "nix", readOnly: false, onChange: onNixChange }),
-    createEditor($("ts-editor"), { language: "javascript", readOnly: true, onChange: onTsChange }),
+    createEditor($("nix-editor"), {
+      language: "nix",
+      readOnly: false,
+      onChange: onNixChange,
+    }),
+    createEditor($("ts-editor"), {
+      language: "javascript",
+      readOnly: true,
+      onChange: onTsChange,
+    }),
   ]);
   if (nixEditor.kind === "textarea") {
     setStatus("CodeMirror did not load; plain text editors");
@@ -329,6 +345,14 @@ async function main() {
       nixEditor.setValue(code);
     }
   });
+
+  // The site build substitutes the derivation's own $out into STORE_PATH,
+  // so the footer names the store path serving the page. A local checkout
+  // still carries the placeholder, and the line stays hidden.
+  if (!STORE_PATH.startsWith("__")) {
+    $("store-path").textContent = STORE_PATH;
+    $("store").hidden = false;
+  }
 
   // For programs driving the page (site/llms.txt).
   window.jinx = jinx;
