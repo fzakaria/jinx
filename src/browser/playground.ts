@@ -27,8 +27,12 @@ import {
 } from "../runtime/ops.ts";
 import { copyPathToStore, pending } from "../runtime/store.ts";
 
-// The file name the snippet is compiled as.
-const SNIPPET_FILE = "/playground/default.nix";
+// The file name the snippet is compiled as, and its directory, which is
+// registered as a tree so the module's `here` resolves without a
+// .jinx/config.json to find.
+const SNIPPET_DIR = "/playground";
+const SNIPPET_FILE = `${SNIPPET_DIR}/default.nix`;
+nix.registerTree(SNIPPET_DIR, SNIPPET_DIR);
 
 export interface CompileResult {
   readonly ok: true;
