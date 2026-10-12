@@ -44,15 +44,39 @@ jobs:
           nixpkgs=$(nix flake prefetch "github:NixOS/nixpkgs/${{ steps.rev.outputs.rev }}" --json | jq -r .storePath)
           nix develop -c bash -c "PATH=\$PATH:$(nix build --no-link --print-out-paths .#jinx)/bin tools/parity.sh $nixpkgs --out work/parity"
 
+      # JINX_NIXPKGS_DEPLOY_KEY is the private half of a deploy key with
+      # write access on fzakaria/jinx-nixpkgs (docs/tracking-nixpkgs.md).
+      # The tree is published on top of the repository's history, so the
+      # README's history table and git's history both carry every revision.
       - name: Publish the tree
         env:
-          JINX_NIXPKGS_TOKEN: ${{ secrets.JINX_NIXPKGS_TOKEN }}
+          JINX_NIXPKGS_DEPLOY_KEY: ${{ secrets.JINX_NIXPKGS_DEPLOY_KEY }}
         run: |
-          nix develop -c tools/publish-nixpkgs.sh "${{ steps.rev.outputs.rev }}" work/jinx-nixpkgs
-          mkdir -p work/jinx-nixpkgs/parity
-          cp work/parity/compare/report.md work/jinx-nixpkgs/parity/
-          gzip -c work/parity/compare/joined.tsv > work/jinx-nixpkgs/parity/joined.tsv.gz
+          key=$(mktemp)
+          printf '%s\n' "$JINX_NIXPKGS_DEPLOY_KEY" > "$key"
+          mkdir -p ~/.ssh && ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes"
+          git clone -q --depth 1 git@github.com:fzakaria/jinx-nixpkgs.git work/jinx-nixpkgs
+          nix develop -c tools/publish-nixpkgs.sh "${{ steps.rev.outputs.rev }}" work/jinx-nixpkgs \
+            --parity work/parity/compare
           cd work/jinx-nixpkgs
-          git init -q && git add -A
+          git add -A
           git -c user.name=jinx -c user.email=jinx@jinx.dev commit -qm "Transpile nixpkgs ${{ steps.rev.outputs.rev }}"
-          git push -q "https://x-access-token:${JINX_NIXPKGS_TOKEN}@github.com/fzakaria/jinx-nixpkgs" HEAD:main
+          git push -q origin HEAD:main
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          rm -f "$key"
+        id: publish
+
+      # The site's nixpkgs page reads the tree from a CDN pinned to the
+      # commit just pushed, so the page and the tree never disagree.
+      - name: Point the site at the new tree
+        run: |
+          nix develop -c node tools/site-nixpkgs-config.ts \
+            --tree-commit "${{ steps.publish.outputs.sha }}" \
+            --rev "${{ steps.rev.outputs.rev }}"
+          git add site/nixpkgs/config.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git -c user.name=jinx -c user.email=jinx@jinx.dev commit -qm "Track nixpkgs ${{ steps.rev.outputs.rev }} on the site"
+          git push -q origin HEAD:${{ github.ref_name }}

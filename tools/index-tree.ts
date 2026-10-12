@@ -2,7 +2,10 @@
 // readDir, pathExists and lstat for every path under the root, so the
 // page knows what exists before it fetches anything.
 //
-//   node tools/index-tree.ts <dir> <out.json>
+//   node tools/index-tree.ts <dir> <out.json> [--skip <name>]...
+//
+// --skip leaves a top-level entry out: the .git of a checkout, or the
+// nixpkgs symlink a published tree carries for local use.
 //
 // The format is the one src/browser/shims/fs-remote.ts reads. nixpkgs has
 // ~100k entries, so it is kept compact: a directory is an object from
@@ -49,12 +52,29 @@ export function indexDir(dir: string): IndexDir {
   return out;
 }
 
-const [dir, outFile] = process.argv.slice(2);
+const SKIP_FLAG = "--skip";
+
+const positional: string[] = [];
+const skip = new Set<string>();
+const argv = process.argv.slice(2);
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === SKIP_FLAG) {
+    skip.add(argv[++i] ?? "");
+    continue;
+  }
+  positional.push(argv[i]);
+}
+const [dir, outFile] = positional;
 if (dir === undefined || outFile === undefined) {
-  process.stderr.write("usage: node tools/index-tree.ts <dir> <out.json>\n");
+  process.stderr.write(
+    "usage: node tools/index-tree.ts <dir> <out.json> [--skip <name>]...\n",
+  );
   process.exit(2);
 }
 const index = indexDir(dir);
+for (const name of skip) {
+  delete index[name];
+}
 const json = JSON.stringify(index);
 writeFileSync(outFile, json);
 process.stderr.write(`${outFile}: ${json.length} bytes\n`);

@@ -20,11 +20,22 @@ tracked nixpkgs commit. The largest module is
 `pkgs/development/haskell-modules/hackage-packages.ts` at 34 MB, under
 GitHub's limit but worth knowing about.
 
-Still to add to each commit: `parity/report.md` and `parity/joined.tsv`
+Each commit also carries `parity/report.md` and `parity/joined.tsv.gz`
 from the run against nix-eval-jobs for that revision
-([verification.md](./verification.md)), and `stats.json` with files
-compiled, time to compile, and time and memory to evaluate on each
-side.
+([verification.md](./verification.md)), and `parity/history.json` with
+the counts of every revision published so far. The README of
+`jinx-nixpkgs` is written from these by `tools/nixpkgs-readme.ts`: a
+status table for the current revision and a history table with one row
+per revision, so the repository's front page says what it holds and how
+it compares with Nix. `.jinx/tree-index.json` and `.jinx/src-index.json`
+list every path of the tree and of the source (`tools/index-tree.ts`),
+which is what lets the site's nixpkgs page evaluate the tree by fetching
+files one at a time from `raw.githubusercontent.com`;
+`site/nixpkgs/config.json` names the commit it reads
+(`tools/site-nixpkgs-config.ts`).
+
+Still to add: `stats.json` with files compiled, time to compile, and
+time and memory to evaluate on each side.
 
 Why a separate repository: the compiled tree is 41,000 files and grows
 with every commit, and its history is nixpkgs' history. Keeping it out
@@ -44,9 +55,23 @@ demand:
    and it does not fit GitHub's runners; it runs on a self-hosted runner
    on leviathan, where nix-eval-jobs and jinx each get the machine for a
    while.
-3. Commit the tree and the report to `jinx-nixpkgs`, tagged with the
-   nixpkgs revision, and rewrite the status block in this README with
-   the new numbers.
+3. Commit the tree and the report to `jinx-nixpkgs` on top of the
+   earlier revisions, and point `site/nixpkgs/config.json` at the new
+   commit. Rewriting the status block in jinx's own README is still to
+   be done by hand.
+
+The push into `jinx-nixpkgs` authenticates with a deploy key: the public
+half is registered on `jinx-nixpkgs` with write access, the private half
+is the `JINX_NIXPKGS_DEPLOY_KEY` secret on `jinx`. Both are set from the
+CLI:
+
+```console
+$ ssh-keygen -t ed25519 -N "" -C "jinx update.yml" -f jinx-nixpkgs-deploy
+$ gh repo deploy-key add jinx-nixpkgs-deploy.pub --repo fzakaria/jinx-nixpkgs \
+    --allow-write --title "jinx update.yml"
+$ gh secret set JINX_NIXPKGS_DEPLOY_KEY --repo fzakaria/jinx < jinx-nixpkgs-deploy
+$ rm jinx-nixpkgs-deploy jinx-nixpkgs-deploy.pub
+```
 
 Starting point: the revision current when the project started. Then
 each channel bump. The channel moves a few times a week, which is the
