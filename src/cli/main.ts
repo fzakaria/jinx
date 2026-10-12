@@ -6,7 +6,7 @@
 //   jinx test-corpus <dir> [--record] [--offline]
 //   jinx adapter OP FILE [FLAGS...]          nix-conformance adapter
 //   jinx instantiate <file.nix> [-A a.b]     write the .drv closure to the store
-//   jinx eval-jobs <file.nix> [-A a.b] [--workers N]   nix-eval-jobs-style JSON lines
+//   jinx eval-jobs <file.nix> [-A a.b] [--workers N] [--max-heap MB] [--skip-done out.jsonl]
 
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -79,7 +79,28 @@ const VALUE_FLAGS: ReadonlySet<string> = new Set([
   "argstr",
   "workers",
   "tree",
+  "max-heap",
+  "skip-done",
 ]);
+
+// A worker's heap budget before it is replaced (eval-jobs).
+const DEFAULT_MAX_HEAP_MB = 6144;
+
+// The attributes an earlier eval-jobs output already covers.
+function doneAttrs(file: string): Set<string> {
+  const out = new Set<string>();
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    if (line === "") {
+      continue;
+    }
+    try {
+      out.add((JSON.parse(line) as { attr: string }).attr);
+    } catch {
+      // a truncated last line
+    }
+  }
+  return out;
+}
 
 function usage(): never {
   process.stderr.write(
@@ -138,6 +159,14 @@ function main(argv: string[]): number {
           typeof flags.get("tree") === "string"
             ? [flags.get("tree") as string]
             : [],
+        maxHeapMb:
+          typeof flags.get("max-heap") === "string"
+            ? Number(flags.get("max-heap"))
+            : DEFAULT_MAX_HEAP_MB,
+        skipDone:
+          typeof flags.get("skip-done") === "string"
+            ? doneAttrs(flags.get("skip-done") as string)
+            : new Set(),
       });
     }
     default:

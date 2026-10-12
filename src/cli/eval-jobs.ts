@@ -45,14 +45,19 @@ export interface EvalJobsOptions {
   readonly cache: string;
   readonly system: string | undefined;
   readonly trees: readonly string[];
+  // A worker whose heap passes this is replaced after its current job:
+  // what it evaluated stays memoised in its heap, so a long run grows
+  // without bound otherwise. nix-eval-jobs does the same with processes.
+  readonly maxHeapMb: number;
+  // Attributes already in an earlier output file are not evaluated again.
+  readonly skipDone: ReadonlySet<string>;
 }
 
 // Main thread -> worker: evaluate this attribute path.
 type Request = { readonly path: string[] };
 
 // Worker -> main thread.
-type Reply =
-  | { readonly kind: "ready" }
+type Outcome =
   | { readonly kind: "result"; readonly path: string[]; readonly line: string }
   | {
       readonly kind: "recurse";
@@ -60,6 +65,11 @@ type Reply =
       readonly names: string[];
     }
   | { readonly kind: "skip"; readonly path: string[] };
+
+// Every outcome carries the worker's heap size so the main thread can
+// retire a worker that has grown past its budget.
+type Reply =
+  { readonly kind: "ready" } | (Outcome & { readonly heapMb: number });
 
 // A Nix evaluation recurses far deeper than node's default stack allows,
 // and holds more than its default heap.
@@ -72,17 +82,23 @@ export function evalJobs(opts: EvalJobsOptions): number {
   let inFlight = 0;
   let done = 0;
   let errors = 0;
+  let replaced = 0;
   const idle: Worker[] = [];
-  const workers: Worker[] = [];
+  const workers = new Set<Worker>();
   let failed: Error | null = null;
+  let finished = false;
 
   const finish = (): void => {
+    if (finished) {
+      return;
+    }
+    finished = true;
     for (const w of workers) {
       void w.terminate();
     }
     const secs = ((performance.now() - started) / 1000).toFixed(1);
     process.stderr.write(
-      `evaluated ${done} attributes (${errors} errors) in ${secs}s with ${opts.workers} workers\n`,
+      `evaluated ${done} attributes (${errors} errors) in ${secs}s with ${opts.workers} workers, ${replaced} replaced\n`,
     );
     process.exitCode = failed === null ? 0 : 1;
   };
@@ -95,16 +111,12 @@ export function evalJobs(opts: EvalJobsOptions): number {
       inFlight++;
       w.postMessage({ path } satisfies Request);
     }
-    if (
-      queue.length === 0 &&
-      inFlight === 0 &&
-      idle.length === workers.length
-    ) {
+    if (queue.length === 0 && inFlight === 0 && idle.length === workers.size) {
       finish();
     }
   };
 
-  for (let i = 0; i < opts.workers; i++) {
+  const spawn = (): void => {
     const w = new Worker(new URL(import.meta.url), {
       workerData: opts,
       resourceLimits: {
@@ -113,28 +125,42 @@ export function evalJobs(opts: EvalJobsOptions): number {
       },
       execArgv: ["--disable-warning=ExperimentalWarning"],
     });
-    workers.push(w);
+    workers.add(w);
     w.on("message", (reply: Reply) => {
+      if (reply.kind === "ready") {
+        idle.push(w);
+        pump();
+        return;
+      }
       switch (reply.kind) {
-        case "ready":
-          break;
         case "result":
           process.stdout.write(reply.line + "\n");
           done++;
           if (reply.line.includes('"error":')) {
             errors++;
           }
-          inFlight--;
           break;
         case "recurse":
           for (const name of reply.names) {
-            queue.push([...reply.path, name]);
+            const path = [...reply.path, name];
+            if (!opts.skipDone.has(path.join("."))) {
+              queue.push(path);
+            }
           }
-          inFlight--;
           break;
         case "skip":
-          inFlight--;
           break;
+      }
+      inFlight--;
+      // Replace a worker that has grown past its budget; a fresh one
+      // re-evaluates the fixpoint and carries on.
+      if (reply.heapMb > opts.maxHeapMb) {
+        workers.delete(w);
+        void w.terminate();
+        replaced++;
+        spawn();
+        pump();
+        return;
       }
       idle.push(w);
       pump();
@@ -144,6 +170,10 @@ export function evalJobs(opts: EvalJobsOptions): number {
       process.stderr.write(`worker failed: ${e.stack ?? e.message}\n`);
       finish();
     });
+  };
+
+  for (let i = 0; i < opts.workers; i++) {
+    spawn();
   }
   return 0;
 }
@@ -163,12 +193,16 @@ function workerMain(opts: EvalJobsOptions): void {
   const root = evaluateFile(opts.file, opts.attrPath, null);
   const port = parentPort!;
   port.on("message", (req: Request) => {
-    port.postMessage(evaluatePath(root, req.path));
+    const heapMb = process.memoryUsage().heapUsed / (1 << 20);
+    port.postMessage({
+      ...evaluatePath(root, req.path),
+      heapMb,
+    } satisfies Reply);
   });
   port.postMessage({ kind: "ready" } satisfies Reply);
 }
 
-function evaluatePath(root: Value, path: string[]): Reply {
+function evaluatePath(root: Value, path: string[]): Outcome {
   let v: Value = root;
   try {
     for (const name of path) {
