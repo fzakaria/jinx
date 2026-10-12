@@ -1,0 +1,323 @@
+/* Minimal on purpose: system fonts, one accent, dark mode via media query.
+   The tokens and the site chrome match trynix and nixpkgs-multiverse, so
+   the three pages read as one family. */
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #6a6a6a;
+  --line: #e0e0e0;
+  --accent: #4f6bed;
+  --code-bg: #f4f4f4;
+  --error: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d;
+    --fg: #e6e6e6;
+    --muted: #9a9a9a;
+    --line: #33363d;
+    --accent: #8fa3ff;
+    --code-bg: #22252c;
+    --error: #ff8a80;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+/* The family's pages hold a 60rem measure; a three-pane playground wants
+   the width, so the body only stops at a very wide screen. */
+body {
+  margin: 0 auto;
+  padding: 1rem;
+  max-width: 110rem;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    15px/1.5 system-ui,
+    sans-serif;
+}
+h1 {
+  font-size: 1.3rem;
+  margin: 0.2rem 0;
+}
+h1 a {
+  color: inherit;
+  text-decoration: none;
+}
+.tagline {
+  margin-left: 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 400;
+}
+
+/* The site header: the title on the left, the top-level destinations on the
+   right. Wraps to two lines on a narrow phone rather than shrinking. */
+header.site {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.3rem 1rem;
+  margin: 0.2rem 0 0.6rem;
+}
+nav.site {
+  margin: 0;
+  border: 0;
+  display: flex;
+  gap: 1rem;
+  font-size: 14px;
+}
+nav.site a {
+  display: inline;
+  padding: 0;
+  border: 0;
+  color: var(--accent);
+  text-decoration: none;
+}
+nav.site a:hover {
+  text-decoration: underline;
+}
+h2 {
+  font-size: 1rem;
+  margin: 0 0 0.3rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+h3 {
+  font-size: 0.9rem;
+  margin: 0.6rem 0 0.2rem;
+}
+.muted {
+  color: var(--muted);
+}
+a {
+  color: var(--accent);
+}
+.lede {
+  font-weight: 600;
+}
+.claim {
+  text-decoration: underline var(--muted);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.intro {
+  max-width: 60rem;
+  margin: 0.4rem 0 0.8rem;
+}
+code {
+  font:
+    13px/1.5 ui-monospace,
+    monospace;
+  background: var(--code-bg);
+  border-radius: 3px;
+  padding: 0.1rem 0.3rem;
+}
+
+/* The toolbar: the examples, the two buttons, and the status at the end. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.8rem;
+  margin: 0 0 0.6rem;
+  font-size: 14px;
+}
+.toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.toolbar select,
+.toolbar button {
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  color: var(--fg);
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.toolbar button:hover,
+.toolbar select:hover {
+  border-color: var(--accent);
+}
+#status {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+}
+#status.error {
+  color: var(--error);
+}
+
+/* The three panes, side by side on a wide screen and stacked on a narrow
+   one. Each pane's editor takes a fixed height so the row lines up. */
+#panes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+@media (max-width: 70rem) {
+  #panes {
+    grid-template-columns: 1fr;
+  }
+}
+.pane {
+  min-width: 0;
+}
+.toggle {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.editor {
+  height: 32rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.editor.read-only {
+  background: var(--code-bg);
+}
+/* CodeMirror fills its box and scrolls inside it. */
+.editor .cm-editor {
+  height: 100%;
+  font-size: 13px;
+}
+.editor .cm-editor.cm-focused {
+  outline: 1px solid var(--accent);
+}
+.editor .cm-scroller {
+  font-family: ui-monospace, monospace;
+  line-height: 1.5;
+}
+.editor .cm-gutters {
+  background: var(--code-bg);
+  color: var(--muted);
+  border-right: 1px solid var(--line);
+}
+.editor.read-only .cm-content {
+  color: var(--fg);
+}
+/* The textarea fallback, when the CDN is out of reach. */
+.fallback-editor {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0.6rem;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg);
+  font:
+    13px/1.5 ui-monospace,
+    monospace;
+  white-space: pre;
+}
+
+/* The result pane: tabs over the value, the JSON and the derivations. */
+#result-tabs {
+  margin: 0 0 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+#result-tabs a {
+  display: inline-block;
+  border-bottom: 2px solid transparent;
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+#result-tabs a.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+#result {
+  height: 27rem;
+  overflow: auto;
+}
+#result pre,
+#log {
+  margin: 0;
+  padding: 0.6rem;
+  background: var(--code-bg);
+  border-radius: 4px;
+  font:
+    13px/1.5 ui-monospace,
+    monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+#result pre.error {
+  color: var(--error);
+}
+#result pre.panel {
+  min-height: 100%;
+}
+
+/* A derivation: its name, its drvPath, the outputs, and the ATerm folded. */
+.drv {
+  margin: 0 0 0.8rem;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.drv h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1rem;
+}
+.drv .path {
+  display: block;
+  padding: 0;
+  background: none;
+  font-size: 12px;
+  word-break: break-all;
+}
+.drv .outputs {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.1rem 0.6rem;
+  margin: 0.4rem 0;
+  font-size: 13px;
+}
+.drv .outputs dt {
+  color: var(--muted);
+}
+.drv .outputs dd {
+  margin: 0;
+}
+.drv details {
+  margin-top: 0.3rem;
+  font-size: 13px;
+}
+.drv summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.drv .aterm {
+  margin-top: 0.3rem;
+}
+
+/* builtins.trace and evaluation warnings, shown only once there are any. */
+#log-section h3 {
+  margin: 0.6rem 0 0.2rem;
+}
+#log {
+  max-height: 8rem;
+  overflow: auto;
+}
+
+footer {
+  margin-top: 2rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  text-align: center;
+}

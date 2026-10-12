@@ -443,7 +443,7 @@ test("rec and empty sets", () => {
   assert.equal(s("let in 1"), "(let {} 1)");
   // The legacy `let { body = ...; }` form, which Nix still accepts, is
   // `(rec { ... }).body`.
-  assert.equal(s("let { body = a; a = 1; }"), "(rec {a=1; body=a;}).body");
+  assert.equal(s("let { body = a; a = 1; }"), "(sel rec {body=a; a=1;} body)");
 });
 
 // ---- lists --------------------------------------------------------------------

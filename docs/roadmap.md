@@ -25,6 +25,10 @@ In order. Each step has a test that says when it is done.
 7. The site. jinx.dev: the parity audit per revision, the Nix and
    TypeScript side by side, a derivation computed in the tab, and a
    profile of an evaluation to click through ([ideas.md](./ideas.md)).
+   Then completions: Monaco's TypeScript service in the page with the
+   runtime's declarations, and a generated `nixpkgs.d.ts` (every
+   attribute name, `lib`'s documented signatures) so `pkgs.` completes
+   while writing a derivation by hand.
 8. A NixOS configuration. Evaluate a real system closure through jinx,
    realise it, and boot it: the end-to-end proof that the compiled tree
    is nixpkgs.

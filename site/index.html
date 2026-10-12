@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>jinx</title>
+    <meta
+      name="description"
+      content="Nix, transpiled to TypeScript. A playground: write Nix, read the TypeScript jinx emits, and evaluate it in the tab, derivations included."
+    />
+    <link rel="canonical" href="https://jinx.dev/" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%234f6bed'/><text x='50' y='74' text-anchor='middle' font-family='monospace' font-size='70' fill='white'>j</text></svg>"
+    />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="jinx" />
+    <meta property="og:title" content="jinx — Nix, transpiled to TypeScript" />
+    <meta
+      property="og:description"
+      content="Write Nix, read the TypeScript jinx emits, and evaluate it in the tab. Derivations and their store paths are computed in the browser, no nix binary anywhere."
+    />
+    <meta property="og:url" content="https://jinx.dev/" />
+
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- CodeMirror 6 from esm.sh, every package pinned. The "*" prefix
+         marks each module's dependencies external, so this map is the
+         single place a version is chosen and @codemirror/state exists
+         once: two copies of it would not recognise each other's
+         facets. js/editors.js imports these lazily and falls back to
+         textareas if the CDN is unreachable. -->
+    <script type="importmap">
+      {
+        "imports": {
+          "codemirror": "https://esm.sh/*codemirror@6.0.2",
+          "@codemirror/state": "https://esm.sh/*@codemirror/state@6.7.6",
+          "@codemirror/view": "https://esm.sh/*@codemirror/view@6.43.14",
+          "@codemirror/language": "https://esm.sh/*@codemirror/language@6.13.1",
+          "@codemirror/commands": "https://esm.sh/*@codemirror/commands@6.11.1",
+          "@codemirror/search": "https://esm.sh/*@codemirror/search@6.7.2",
+          "@codemirror/autocomplete": "https://esm.sh/*@codemirror/autocomplete@6.20.3",
+          "@codemirror/lint": "https://esm.sh/*@codemirror/lint@6.9.7",
+          "@codemirror/streamparser": "https://esm.sh/*@codemirror/streamparser@6.0.0",
+          "@codemirror/lang-javascript": "https://esm.sh/*@codemirror/lang-javascript@6.2.5",
+          "@lezer/common": "https://esm.sh/*@lezer/common@1.5.3",
+          "@lezer/highlight": "https://esm.sh/*@lezer/highlight@1.2.5",
+          "@lezer/lr": "https://esm.sh/*@lezer/lr@1.4.11",
+          "@lezer/javascript": "https://esm.sh/*@lezer/javascript@1.5.6",
+          "@marijn/find-cluster-break": "https://esm.sh/*@marijn/find-cluster-break@1.0.4",
+          "style-mod": "https://esm.sh/*style-mod@4.1.4",
+          "w3c-keyname": "https://esm.sh/*w3c-keyname@2.2.8",
+          "crelt": "https://esm.sh/*crelt@1.0.7"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header class="site">
+      <h1>
+        <a href=".">jinx</a>
+        <span class="tagline muted">Nix, transpiled to TypeScript</span>
+      </h1>
+      <nav class="site">
+        <a href="https://github.com/fzakaria/jinx/blob/main/docs/design.md" title="the value mapping, where thunks go, what the emitted code looks like">Design</a>
+        <a href="https://github.com/fzakaria/jinx/blob/main/docs/verification.md" title="how jinx is held to Nix: the conformance suite and the whole-nixpkgs drvPath diff">Verification</a>
+        <a href="https://github.com/fzakaria/jinx/tree/main/docs" title="every document">Docs</a>
+        <a href="https://github.com/fzakaria/jinx">GitHub</a>
+      </nav>
+    </header>
+
+    <p class="intro">
+      <strong class="lede">Derivations, computed in this tab.</strong> jinx reads Nix and writes
+      TypeScript that evaluates to the same thing. The Nix on the left becomes the TypeScript in the
+      middle, which runs here and prints its value on the right. A
+      <code>derivation</code> call produces the <code>.drv</code> Nix would:
+      <span class="claim">same ATerm, same hash, same store path, no nix binary anywhere.</span>
+    </p>
+
+    <div class="toolbar">
+      <label>
+        Example
+        <select id="examples" aria-label="examples"></select>
+      </label>
+      <button id="compile" type="button" title="Nix to TypeScript, then evaluate">Compile</button>
+      <button id="evaluate" type="button" title="run the TypeScript pane as it is">Evaluate</button>
+      <span id="status" class="muted" aria-live="polite"></span>
+    </div>
+
+    <main id="panes">
+      <section class="pane" id="pane-nix">
+        <h2>Nix</h2>
+        <div class="editor" id="nix-editor"></div>
+      </section>
+
+      <section class="pane" id="pane-ts">
+        <h2>
+          TypeScript
+          <label class="toggle" title="edit the TypeScript by hand; Nix edits stop overwriting it">
+            <input type="checkbox" id="ts-edit" /> edit
+          </label>
+        </h2>
+        <div class="editor" id="ts-editor"></div>
+      </section>
+
+      <section class="pane" id="pane-result">
+        <h2>Result</h2>
+        <nav id="result-tabs">
+          <a href="#" data-tab="value" title="the value, as nix-instantiate --eval --strict prints it">Value</a>
+          <a href="#" data-tab="json" title="builtins.toJSON of the value">JSON</a>
+          <a href="#" data-tab="derivations" title="every derivation the evaluation produced">Derivations<span id="derivations-count"></span></a>
+        </nav>
+        <div id="result">
+          <pre class="panel" id="value" data-tab="value"></pre>
+          <pre class="panel" id="json" data-tab="json"></pre>
+          <div class="panel" id="derivations" data-tab="derivations"></div>
+        </div>
+        <section id="log-section" hidden>
+          <h3>Log</h3>
+          <pre id="log" title="builtins.trace and evaluation warnings"></pre>
+        </section>
+      </section>
+    </main>
+
+    <footer class="muted">
+      Made by
+      <a href="https://fzakaria.com">Farid Zakaria</a>
+      ·
+      <a href="https://github.com/fzakaria/jinx/blob/main/LICENSE">MIT</a>
+      ·
+      <a href="https://github.com/fzakaria/jinx/blob/main/README.md">README</a>
+      ·
+      <a href="llms.txt" title="orientation for a program driving this page">llms.txt</a>
+    </footer>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
