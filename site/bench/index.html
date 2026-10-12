@@ -45,14 +45,12 @@
 
     <main>
       <p class="intro">
-        <strong class="lede">Each record is one run of
-        <a href="https://github.com/fzakaria/jinx/blob/main/tools/bench.ts">tools/bench.ts</a>:</strong>
-        a few evaluations that nix-instantiate and jinx both perform on the same nixpkgs, timed
-        under GNU time as the median of three runs. jinx runs cold, into an empty cache, which
-        includes compiling every module the evaluation touches, and warm, with the compiled
-        modules present. The outputs are compared, so each point is also a parity check.
-        <a href="../docs/performance">performance.md</a> says what each probe is and where
-        jinx's time goes.
+        <strong class="lede">nix-instantiate and jinx, timed on the same evaluations.</strong>
+        Each record is one run of
+        <a href="https://github.com/fzakaria/jinx/blob/main/tools/bench.ts">tools/bench.ts</a>,
+        the median of three. jinx runs cold, compiling as it goes, and warm, with the modules
+        compiled. <a href="../docs/performance">performance.md</a> has the probes and where the
+        time goes.
       </p>
 
       <h2>Latest run</h2>
