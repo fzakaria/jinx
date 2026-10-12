@@ -9,6 +9,14 @@
       url = "github:numtide/nix-conformance";
       flake = false;
     };
+
+    # nixpkgs compiled to TypeScript, for the site's nixpkgs page served
+    # locally (docs/tracking-nixpkgs.md). Its .jinx/config.json names the
+    # nixpkgs revision it was compiled from.
+    jinx-nixpkgs = {
+      url = "github:fzakaria/jinx-nixpkgs";
+      flake = false;
+    };
   };
 
   # Wiring only. Everything this repository builds lives under nix/, one file
@@ -19,6 +27,7 @@
       self,
       nixpkgs,
       nix-conformance,
+      jinx-nixpkgs,
     }:
     let
       systems = [
@@ -43,8 +52,15 @@
           default = jinx;
 
           # jinx.dev: the playground with the compiler and runtime bundled
-          # for the browser, and the rendered docs (nix/site.nix).
+          # for the browser, and the rendered docs (nix/site.nix). `site` is
+          # what GitHub Pages deploys; its nixpkgs page reads the compiled
+          # tree from GitHub. `site-local` carries the tree and the nixpkgs
+          # source itself, for `nix run .#serve` with no network.
           site = import ./nix/site.nix { inherit pkgs self; };
+          site-local = import ./nix/site.nix {
+            inherit pkgs self;
+            tree = jinx-nixpkgs;
+          };
         }
       );
 
@@ -53,7 +69,7 @@
         import ./nix/apps.nix {
           pkgs = pkgsFor system;
           jinx = self.packages.${system}.jinx;
-          site = self.packages.${system}.site;
+          site = self.packages.${system}.site-local;
           inherit nix-conformance;
         }
       );

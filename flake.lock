@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "jinx-nixpkgs": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791820013,
+        "narHash": "sha256-G0GhMl+QaXmqRvJ8xWn5HLOKzLItrroVaPlxAdieNyg=",
+        "owner": "fzakaria",
+        "repo": "jinx-nixpkgs",
+        "rev": "3ad83c2d991f8e9bc1fe100a1ec8a82dbfa6bc99",
+        "type": "github"
+      },
+      "original": {
+        "owner": "fzakaria",
+        "repo": "jinx-nixpkgs",
+        "type": "github"
+      }
+    },
     "nix-conformance": {
       "flake": false,
       "locked": {
@@ -34,6 +50,7 @@
     },
     "root": {
       "inputs": {
+        "jinx-nixpkgs": "jinx-nixpkgs",
         "nix-conformance": "nix-conformance",
         "nixpkgs": "nixpkgs"
       }
