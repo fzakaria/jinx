@@ -16,7 +16,7 @@ import type {
   StringPart,
 } from "./ast.ts";
 import { formatPos } from "./ast.ts";
-import { LexError, Lexer, type Token } from "./lexer.ts";
+import { type IndentedSegment, LexError, Lexer, type Token } from "./lexer.ts";
 
 export class ParseError extends Error {
   readonly pos: Pos;
@@ -490,10 +490,10 @@ class Parser {
   }
 
   private parseIndentedStringParts(): StringPart[] {
-    const parts: StringPart[] = [];
+    const parts: IndentedPart[] = [];
     for (;;) {
-      const { text, stop } = this.lx.scanIndentedString();
-      parts.push(text);
+      const { segments, stop } = this.lx.scanIndentedString();
+      parts.push(...segments);
       if (stop === "end") {
         return stripIndentation(parts);
       }
@@ -757,16 +757,25 @@ function wrapPath(path: readonly AttrName[], value: Expr): Expr {
   };
 }
 
+// A part of an indented string before stripping: text, an escape
+// sequence's value, or an interpolation.
+export type IndentedPart = IndentedSegment | Expr;
+
 // Nix's stripIndentation, from parser.y: the least indentation of any line
 // with content is removed from every line; a line that starts with an
-// interpolation counts with the spaces before it; only spaces count, not
-// tabs; and a final line of nothing but spaces is dropped.
-export function stripIndentation(parts: readonly StringPart[]): StringPart[] {
+// interpolation or an escape counts with the spaces before it; only
+// spaces count, not tabs; and a final line of nothing but spaces is
+// dropped. An escaped character ends a line's leading whitespace the way
+// an interpolation does, and a newline it produces does not begin a line.
+export function stripIndentation(parts: readonly IndentedPart[]): StringPart[] {
+  const isSegment = (p: IndentedPart): p is IndentedSegment => "escaped" in p;
+  const isText = (p: IndentedPart): p is IndentedSegment =>
+    isSegment(p) && !p.escaped;
   let atStartOfLine = true;
   let minIndent = Number.MAX_SAFE_INTEGER;
   let curIndent = 0;
   for (const part of parts) {
-    if (typeof part !== "string") {
+    if (!isText(part)) {
       if (atStartOfLine) {
         atStartOfLine = false;
         if (curIndent < minIndent) {
@@ -775,7 +784,7 @@ export function stripIndentation(parts: readonly StringPart[]): StringPart[] {
       }
       continue;
     }
-    for (const c of part) {
+    for (const c of part.text) {
       if (atStartOfLine) {
         if (c === " ") {
           curIndent++;
@@ -795,17 +804,32 @@ export function stripIndentation(parts: readonly StringPart[]): StringPart[] {
   }
 
   const out: StringPart[] = [];
+  const pushText = (t: string): void => {
+    if (t.length === 0) {
+      return;
+    }
+    const last = out[out.length - 1];
+    if (typeof last === "string") {
+      out[out.length - 1] = last + t;
+    } else {
+      out.push(t);
+    }
+  };
   atStartOfLine = true;
   let curDropped = 0;
   parts.forEach((part, i) => {
-    if (typeof part !== "string") {
+    if (!isText(part)) {
       atStartOfLine = false;
       curDropped = 0;
-      out.push(part);
+      if (isSegment(part)) {
+        pushText(part.text);
+      } else {
+        out.push(part);
+      }
       return;
     }
     let s = "";
-    for (const c of part) {
+    for (const c of part.text) {
       if (atStartOfLine) {
         if (c === " ") {
           if (curDropped++ >= minIndent) {
@@ -832,9 +856,7 @@ export function stripIndentation(parts: readonly StringPart[]): StringPart[] {
         s = s.slice(0, p + 1);
       }
     }
-    if (s.length > 0) {
-      out.push(s);
-    }
+    pushText(s);
   });
   return out;
 }

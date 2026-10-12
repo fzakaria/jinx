@@ -6,7 +6,7 @@
 //   jinx test-corpus <dir> [--record] [--offline]
 //   jinx adapter OP FILE [FLAGS...]          nix-conformance adapter
 //   jinx instantiate <file.nix> [-A a.b]     write the .drv closure to the store
-//   jinx eval-jobs <file.nix> [-A a.b] [--workers N] [--max-heap MB] [--skip-done out.jsonl]
+//   jinx eval-jobs <file.nix> [-A a.b] [--workers N] [--max-heap MB] [--skip-done out.jsonl] [--only attrs.txt]
 
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -86,6 +86,7 @@ const VALUE_FLAGS: ReadonlySet<string> = new Set([
   "tree",
   "max-heap",
   "skip-done",
+  "only",
 ]);
 
 // A worker's heap budget before it is replaced (eval-jobs).
@@ -172,6 +173,12 @@ function main(argv: string[]): number {
           typeof flags.get("skip-done") === "string"
             ? doneAttrs(flags.get("skip-done") as string)
             : new Set(),
+        only:
+          typeof flags.get("only") === "string"
+            ? readFileSync(flags.get("only") as string, "utf8")
+                .split("\n")
+                .filter((l) => l !== "")
+            : null,
       });
     }
     default:

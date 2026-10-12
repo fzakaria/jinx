@@ -25,6 +25,13 @@ export type TokenKind =
   | "op"
   | "eof";
 
+// A piece of an indented string: literal text, or an escape sequence's
+// value, which the indentation rules treat differently.
+export interface IndentedSegment {
+  readonly text: string;
+  readonly escaped: boolean;
+}
+
 export interface Token {
   readonly kind: TokenKind;
   // The identifier, keyword, operator, or the literal's source text.
@@ -315,12 +322,30 @@ export class Lexer {
     }
   }
 
-  // The same for `''` strings. Indentation is stripped by the parser once
-  // all the parts are known, since the rule spans interpolations.
-  scanIndentedString(): { text: string; stop: "interpolation" | "end" } {
+  // The same for '' strings, as segments: an escape (three quotes, ''$,
+  // ''\n) is its own segment, because Nix's indentation stripping treats
+  // an escaped character like an interpolation rather than like text, and
+  // a newline produced by ''\n does not start a line. Indentation is
+  // stripped by the parser once all the parts are known.
+  scanIndentedString(): {
+    segments: IndentedSegment[];
+    stop: "interpolation" | "end";
+  } {
     this.assertNoLookahead();
     const src = this.src;
-    let out = "";
+    const segments: IndentedSegment[] = [];
+    let text = "";
+    const flush = (): void => {
+      if (text.length > 0) {
+        segments.push({ text, escaped: false });
+        text = "";
+      }
+    };
+    const escaped = (t: string, len: number): void => {
+      flush();
+      segments.push({ text: t, escaped: true });
+      this.advance(len);
+    };
     for (;;) {
       if (this.pos >= src.length) {
         this.fail("unterminated indented string");
@@ -329,13 +354,11 @@ export class Lexer {
       if (c === "'" && src[this.pos + 1] === "'") {
         const e = src[this.pos + 2];
         if (e === "$") {
-          out += "$";
-          this.advance(3);
+          escaped("$", 3);
           continue;
         }
         if (e === "'") {
-          out += "''";
-          this.advance(3);
+          escaped("''", 3);
           continue;
         }
         if (e === "\\") {
@@ -343,25 +366,26 @@ export class Lexer {
           if (f === undefined) {
             this.fail("unterminated indented string");
           }
-          out += unescape(f);
-          this.advance(4);
+          escaped(unescape(f), 4);
           continue;
         }
         this.advance(2);
-        return { text: out, stop: "end" };
+        flush();
+        return { segments, stop: "end" };
       }
       if (c === "$") {
         if (src[this.pos + 1] === "{") {
           this.advance(2);
-          return { text: out, stop: "interpolation" };
+          flush();
+          return { segments, stop: "interpolation" };
         }
         if (src[this.pos + 1] === "$") {
-          out += "$$";
+          text += "$$";
           this.advance(2);
           continue;
         }
       }
-      out += c;
+      text += c;
       this.advance(1);
     }
   }

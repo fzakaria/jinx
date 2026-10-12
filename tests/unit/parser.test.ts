@@ -494,15 +494,28 @@ test("indented string stripping", () => {
 // Tests stripIndentation directly on part lists, including the final
 // spaces-only line rule and an all-blank string.
 test("stripIndentation on parts", () => {
-  assert.deepEqual(stripIndentation(["  a\n  b\n  "]), ["a\nb\n"]);
-  assert.deepEqual(stripIndentation(["  a\n   "]), ["a\n"]);
-  assert.deepEqual(stripIndentation(["    x\n  y"]), ["  x\ny"]);
+  const t = (text: string) => ({ text, escaped: false });
+  assert.deepEqual(stripIndentation([t("  a\n  b\n  ")]), ["a\nb\n"]);
+  assert.deepEqual(stripIndentation([t("  a\n   ")]), ["a\n"]);
+  assert.deepEqual(stripIndentation([t("    x\n  y")]), ["  x\ny"]);
   assert.deepEqual(
     stripIndentation([
-      "  ",
+      t("  "),
       { kind: "var", name: "a", pos: { file: FILE, line: 1, column: 1 } },
     ]),
     [{ kind: "var", name: "a", pos: { file: FILE, line: 1, column: 1 } }],
+  );
+});
+
+// Tests that an escape counts like an interpolation for indentation: it
+// ends the leading whitespace without being text, and a newline it
+// produces does not begin a line, so the lines after it are still
+// stripped. nixpkgs' kmod-blacklist-ubuntu has exactly this shape and
+// Nix strips it to the second form.
+test("escapes in indented strings do not disturb stripping", () => {
+  assert.equal(
+    s("''\n    echo \"''\\n''\\n## file\"\n    cat x\n''"),
+    '(str "echo \\"\\n\\n## file\\"\\ncat x\\n")',
   );
 });
 
@@ -511,7 +524,7 @@ test("stripIndentation on parts", () => {
 // Nix's minimum indentation stays at its sentinel and every space is
 // dropped.
 test("indented string of only spaces is empty", () => {
-  assert.deepEqual(stripIndentation(["   "]), []);
+  assert.deepEqual(stripIndentation([{ text: "   ", escaped: false }]), []);
   assert.equal(s("''   ''"), "(str )");
 });
 

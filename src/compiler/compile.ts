@@ -203,11 +203,31 @@ export function* walkNix(dir: string): Generator<string> {
   }
 }
 
-// Whether the compiled output is older than its source (or missing).
+// When the compiler itself last changed: a module compiled before that
+// is stale even if its source is not.
+const COMPILER_DIRS = ["../syntax", "../compiler"];
+let compilerMtime: number | null = null;
+
+function compilerChangedAt(): number {
+  if (compilerMtime === null) {
+    compilerMtime = 0;
+    for (const dir of COMPILER_DIRS) {
+      compilerMtime = Math.max(
+        compilerMtime,
+        newestMtime(resolve(dirname(fileURLToPath(import.meta.url)), dir)),
+      );
+    }
+  }
+  return compilerMtime;
+}
+
+// Whether the compiled output is older than its source or than the
+// compiler (or missing).
 export function isStale(opts: TreeOptions, nixFile: string): boolean {
   const out = outputPathFor(opts, nixFile);
   if (!existsSync(out)) {
     return true;
   }
-  return statSync(out).mtimeMs < statSync(nixFile).mtimeMs;
+  const built = statSync(out).mtimeMs;
+  return built < statSync(nixFile).mtimeMs || built < compilerChangedAt();
 }

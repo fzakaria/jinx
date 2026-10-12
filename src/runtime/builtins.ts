@@ -609,7 +609,8 @@ def("dirOf", 1, (s) => {
   const i = trimmed.lastIndexOf("/");
   let dir: string;
   if (i < 0) {
-    dir = ".";
+    // `dirOf "/"`: the root's directory is the root.
+    dir = t.startsWith("/") ? "/" : ".";
   } else if (i === 0) {
     dir = "/";
   } else {

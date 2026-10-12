@@ -53,7 +53,8 @@ function stringText(src: string): { text: string; stop: string } {
 function indentedText(src: string): { text: string; stop: string } {
   const lx = new Lexer(src, FILE);
   assert.equal(lx.next().kind, "indent-start");
-  return lx.scanIndentedString();
+  const { segments, stop } = lx.scanIndentedString();
+  return { text: segments.map((p) => p.text).join(""), stop };
 }
 
 // ---- longest match ----------------------------------------------------------
@@ -370,11 +371,14 @@ test("indented string ''$ before an interpolation", () => {
   const lx = new Lexer("''a''$${b}''", FILE);
   assert.equal(lx.next().kind, "indent-start");
   assert.deepEqual(lx.scanIndentedString(), {
-    text: "a$",
+    segments: [
+      { text: "a", escaped: false },
+      { text: "$", escaped: true },
+    ],
     stop: "interpolation",
   });
   assert.deepEqual([lx.next().text, lx.next().text], ["b", "}"]);
-  assert.deepEqual(lx.scanIndentedString(), { text: "", stop: "end" });
+  assert.deepEqual(lx.scanIndentedString(), { segments: [], stop: "end" });
 });
 
 // Tests that `${` inside an indented string stops the scan and the text
@@ -383,11 +387,14 @@ test("indented string interpolation protocol", () => {
   const lx = new Lexer("''x${y}z''", FILE);
   assert.equal(lx.next().kind, "indent-start");
   assert.deepEqual(lx.scanIndentedString(), {
-    text: "x",
+    segments: [{ text: "x", escaped: false }],
     stop: "interpolation",
   });
   assert.deepEqual([lx.next().text, lx.next().text], ["y", "}"]);
-  assert.deepEqual(lx.scanIndentedString(), { text: "z", stop: "end" });
+  assert.deepEqual(lx.scanIndentedString(), {
+    segments: [{ text: "z", escaped: false }],
+    stop: "end",
+  });
 });
 
 // Tests that the `''` opener swallows the rest of its line when that is
