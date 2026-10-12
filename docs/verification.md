@@ -71,14 +71,17 @@ than the full run. This is the bar [psyclyx/fix] met, every attribute
 identical, and the number the status block in the README reports.
 
 The first full run, nixpkgs 6510408d on leviathan with 32 workers:
-nix-eval-jobs took 26 minutes and jinx 14 for 231,777 attributes;
-228,492 drvPaths were identical, 2,714 attributes failed on both
-sides, 30 differed and 541 failed only in jinx. The first comparison
-found five causes among 7,500 mismatches (a `constructor` key read
-from Object.prototype, the coercion of `__toString` in toJSON, Nix's
-base64 decoder ignoring text after its padding, `dirOf "/"`, and the
-indentation rule around escapes in `''` strings); after fixing them
-and re-running the flagged attributes, two causes remain.
+nix-eval-jobs took 26 minutes and jinx 14 for 231,777 attributes. The
+first comparison found 228,492 identical drvPaths and seven causes
+among the 7,500 mismatches: a `constructor` key read from
+Object.prototype, the coercion of `__toString` in toJSON, Nix's base64
+decoder ignoring text after its padding, `dirOf "/"`, the indentation
+rule around escapes in `''` strings, `unsafeGetAttrPos` (nixpkgs'
+stdenv reads it on aarch64-darwin), and one package embedding
+`getEnv "SHELL"`, which needs both evaluators to see the same
+environment. After fixing them and re-running the flagged attributes
+with `--only`, every attribute agrees: 229,063 identical drvPaths and
+2,714 attributes that fail on both sides.
 
 ## What the bar does not cover
 

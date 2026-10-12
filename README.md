@@ -61,18 +61,19 @@ $ nix-instantiate --eval --strict hello.nix
 
 <!-- BEGIN status -->
 
-- The parser accepts all 41,313 `.nix` files in nixpkgs (8 s); the
-  whole tree compiles to TypeScript in 28 s.
-- Whole-nixpkgs parity against nix-eval-jobs, nixpkgs
+- Whole-nixpkgs parity against nix-eval-jobs on nixpkgs
   [6510408d](https://github.com/NixOS/nixpkgs/commit/6510408d147d8c5e6d76043e899e9251756f6a75),
-  all 231,777 attributes of `ci/eval/outpaths.nix`: 228,492 drvPaths
-  identical, 2,714 attributes failing on both sides, 30 differing and
-  541 failing only in jinx (one cause each, being fixed). That is 99.75
-  percent agreement; the run took 14 minutes on 32 cores.
+  every attribute of `ci/eval/outpaths.nix` on x86_64-linux,
+  aarch64-linux and aarch64-darwin: **231,777 attributes, 229,063
+  identical drvPaths, 2,714 failing on both sides, 0 differing, 0
+  failing on one side only.** The run takes 14 minutes on 32 cores
+  against nix-eval-jobs' 26.
 - nix-conformance: 1,106 of 1,305 cases pass, including every `.drv`
   and NAR round trip ([verification](./docs/verification.md)).
 - jinx evaluates nixpkgs in a browser tab, fetching compiled modules on
   demand: hello in 1.7 s, firefox in 8 s, with Nix's drvPaths.
+- The parser accepts all 41,313 `.nix` files in nixpkgs (8 s); the
+  whole tree compiles to TypeScript in 28 s.
 
 <!-- END status -->
 
