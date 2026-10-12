@@ -1,0 +1,52 @@
+# Formatting first, then `nix flake check`, which runs everything the flake
+# defines, all of it offline:
+#
+#   checks.build        the compiler type-checks and installs
+#   checks.unit         the node:test suites (parser, emitter, every
+#                       byte-exact runtime module) against recorded cases
+#   checks.corpus       tests/corpus/*.nix against the recorded nix output
+#   checks.conformance  nix-conformance through the adapter, against the
+#                       floor in tests/conformance/expected.json
+#
+# Then the one thing recording cannot stand in for: the live differential
+# against the nix on the runner (JINX_NIX_DIFF=1), which asks the real
+# nix-instantiate the same questions the recordings answer. Recordings
+# drift when nix changes; this step says when.
+#
+# The whole-nixpkgs parity run is not here: it needs hours of cores and
+# runs on its own machine (docs/verification.md, tools/parity.sh).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Formatting
+        run: nix fmt -- --ci
+
+      - name: Checks
+        run: nix flake check -L
+
+      - name: Live differential against nix
+        run: nix develop -c env JINX_NIX_DIFF=1 npm test
+
+      - name: Corpus against nix-instantiate
+        run: nix develop -c npm run corpus

@@ -1,0 +1,8 @@
+result
+result-*
+node_modules/
+# The transpiled trees jinx writes: `jinx compile` output and the nixpkgs
+# corpus checkouts under work/.
+out/
+work/
+.tsbuildinfo

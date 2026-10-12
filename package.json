@@ -1,0 +1,19 @@
+{
+  "name": "jinx",
+  "version": "0.1.0",
+  "description": "Nix, transpiled to TypeScript",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "jinx": "src/cli/main.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/unit/*.test.ts",
+    "corpus": "node --disable-warning=ExperimentalWarning src/cli/main.ts test-corpus tests/corpus"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT"
+}
