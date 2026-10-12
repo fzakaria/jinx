@@ -198,9 +198,12 @@ const configuration = ({ pkgs }: { pkgs: any }) => ({
   system: { stateVersion: "25.11" },
 });
 
-const system = nixos({ configuration }).config.system.build.toplevel;
+const config = nixos({ configuration }).config;
 
-export default { system: system.drvPath, hostName: nixos({ configuration }).config.networking.hostName };
+export default {
+  system: config.system.build.toplevel.drvPath,
+  hostName: config.networking.hostName,
+};
 `,
   },
   {

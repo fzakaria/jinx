@@ -19,6 +19,7 @@ import {
   fetchSync,
   mount,
   prefetch,
+  urlOf,
 } from "./shims/fs-remote.ts";
 import { FileLists } from "./file-lists.ts";
 import { setRuntime } from "./shims/module-remote.ts";
@@ -100,11 +101,27 @@ async function prefetchHot(url: string): Promise<void> {
   }
 }
 
+// The tree's modules were compiled against an ABI; this runtime has to
+// match (src/browser/nixpkgs-worker.ts makes the same check).
+const TREE_CONFIG = `${TREE_ROOT}/.jinx/config.json`;
+function checkAbi(): void {
+  const cfg = JSON.parse(
+    new TextDecoder().decode(fetchSync(urlOf(TREE_CONFIG))),
+  ) as { abi?: number; jinx?: string };
+  const abi = cfg.abi ?? 1;
+  if (abi !== nix.ABI) {
+    throw new Error(
+      `this page's runtime is ABI ${nix.ABI} but the tree was compiled against ABI ${abi} (jinx ${(cfg.jinx ?? "?").slice(0, 7)}): the site and the tree are out of step`,
+    );
+  }
+}
+
 function init(msg: InitMessage): void {
   const treeIndex = loadIndex(msg.treeIndexUrl);
   const srcIndex = loadIndex(msg.srcIndexUrl);
   mount(TREE_ROOT, msg.treeUrl, treeIndex);
   mount(SRC_ROOT, msg.srcUrl, srcIndex);
+  checkAbi();
   if (msg.filesUrl !== undefined) {
     fileLists = new FileLists(
       msg.filesUrl,
