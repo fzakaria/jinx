@@ -1,12 +1,14 @@
-# jinx
+<p align="center">
+  <img src="site/favicon.svg" width="72" height="72" alt="" />
+</p>
 
-Nix, transpiled to TypeScript.
+<h1 align="center">jinx</h1>
+
+<p align="center"><b>Nix, transpiled to TypeScript.</b></p>
 
 jinx reads Nix and writes TypeScript that evaluates to the same thing.
 The output is a program you can read, type-check, debug, profile and
-run in a browser. Every `.drv` it computes for nixpkgs is the one Nix
-computes, so the output paths agree and `nix-store --realise` builds
-the same thing.
+run in a browser.
 
 ```console
 $ jinx compile pkgs/by-name/he/hello/package.nix
@@ -79,32 +81,25 @@ $ nix-instantiate --eval --strict hello.nix
 
 ## Why
 
-Every tool that wants to understand nixpkgs reimplements the Nix
-language: a parser, an evaluator, derivation hashing, a hundred
-builtins. The result is an interpreter, and an interpreter gives you a
-value.
-
-A compiler gives you a program. Once nixpkgs is TypeScript, the tools
-that exist for TypeScript apply: a type checker, a debugger with
-breakpoints, a CPU profiler that says which package the evaluation time
-goes to, a bundler that cuts a package set down to what one
-configuration uses, a browser that runs the result without a server.
-[ideas.md](./docs/ideas.md) is the list.
-
-A Nix evaluator that is nearly right is useless, because a derivation
-hash that is nearly right is a different derivation. jinx is held to
-Nix's own test suite through [nix-conformance] and to all of nixpkgs
-through a drvPath diff against [nix-eval-jobs]
-([verification](./docs/verification.md)).
+Nix evaluates nixpkgs with an interpreter, and an interpreter gives you
+a value. A compiler gives you a program, and once nixpkgs is a
+TypeScript program the tools built for TypeScript work on it: step
+through `stdenv.mkDerivation` in a debugger, profile an evaluation to
+see which package the time goes to, bundle the modules one
+configuration reaches and nothing else, evaluate a package set in a
+browser with no server behind it. A derivation computed by jinx has the
+same drvPath as one computed by Nix, so everything built on top of it
+stays compatible with the Nix store and with `nix-store --realise`.
 
 ## How it works
 
 Each `.nix` file becomes one `.ts` module of the same name in a tree
 that mirrors the source. A lambda is an arrow function, a `let` is a
 block of consts, an attribute set is an object literal, `import` is
-`require`. Laziness is spelled out: `nix.thunk(() => ...)` where Nix
-would allocate a thunk and `nix.force` where it would force one, by the
-same rules as Nix's evaluator, so sharing and evaluation order match.
+`require`. Nix is lazy, so the emitted code wraps an expression in
+`nix.thunk(() => ...)` wherever Nix would allocate a thunk and calls
+`nix.force` wherever Nix would force one, by the same rules as Nix's
+evaluator, so sharing and evaluation order match.
 
 The runtime (`src/runtime/`) is the value model, the builtins, string
 contexts, and the derivation code that turns an attribute set into an
@@ -112,15 +107,15 @@ ATerm, hashes it, and computes output paths. Evaluation writes nothing
 to `/nix/store`; `jinx instantiate` writes the `.drv` closure
 afterwards for `nix-store --realise`.
 
-[design.md](./docs/design.md) has the value mapping, where thunks go,
-how `with` resolves, and what the emitted code looks like.
-
 ## Writing derivations in TypeScript
 
-Compiled code spells out every thunk. Code written by hand should not
-have to, so `src/lib` wraps a Nix value in a view: attribute reads
-force, calls apply, and plain objects, arrays, strings and numbers are
-accepted as arguments. [examples/hello.ts](./examples/hello.ts):
+The compiled form is faithful to Nix down to every thunk, which makes
+it exact and makes it tedious to write by hand. `src/lib` is the
+hand-written form: a view over a Nix value where attribute reads force,
+calls apply, and plain objects, arrays, strings and numbers pass as
+arguments. It interoperates with nixpkgs, so a package written in
+TypeScript can call `stdenv.mkDerivation` and depend on anything in
+`pkgs`. [examples/hello.ts](./examples/hello.ts):
 
 ```ts
 import { loadNixpkgs } from "jinx";
@@ -143,34 +138,6 @@ console.log(hello.drvPath);
 The same runtime evaluates nixpkgs underneath, so the drvPath is the
 one Nix would compute, and `jinx instantiate` writes it to the store.
 
-`tools/gen-nixpkgs-dts.ts` writes TypeScript declarations for a package
-set: every attribute, `lib`'s functions with their documented
-signatures as TypeScript types, and the shape of a derivation. With
-`loadNixpkgs<Nixpkgs>(...)` an editor completes `pkgs.` and a
-misspelled attribute is a type error
-([examples/typed-hello.ts](./examples/typed-hello.ts)).
-
-## Layout
-
-```
-src/syntax/     the lexer and parser, after Nix's lexer.l and parser.y
-src/compiler/   scoping, the TypeScript emitter, source maps
-src/runtime/    values, builtins, derivations, the store, NAR, regex, TOML
-src/cli/        jinx compile | eval | eval-jobs | instantiate | test-corpus | adapter
-src/lib/        the view API for hand-written TypeScript (examples/)
-src/browser/    the compiler and runtime bundled for the site
-site/           jinx.dev: playground, nixpkgs in the browser, parity, benchmark
-tests/corpus/   Nix files evaluated by jinx and nix, which must agree
-tests/unit/     node:test suites, most with a differential mode against nix
-nix/            the flake's pieces: package, checks, formatter, dev shell, site
-tools/          the parity run, the conformance adapter, publishing, the site build
-docs/
-```
-
-No npm dependencies. Node 24 runs the TypeScript directly and `tsc`
-only checks; `@types/node` is pinned by hash in
-[nix/types-node.nix](./nix/types-node.nix).
-
 ## Running
 
 ```console
@@ -183,6 +150,10 @@ $ nix flake check                   # all of the above, offline, plus nix-confor
 $ nix run .#serve                   # the site, with nixpkgs in the browser served from the store
 $ nix fmt                           # before committing
 ```
+
+No npm dependencies. Node 24 runs the TypeScript directly and `tsc`
+only checks; `@types/node` is pinned by hash in
+[nix/types-node.nix](./nix/types-node.nix).
 
 ## Credits
 
@@ -199,8 +170,6 @@ $ nix fmt                           # before committing
 MIT, see [LICENSE](LICENSE). The transpiled nixpkgs trees are derived
 from nixpkgs, which is MIT.
 
-[nix-conformance]: https://github.com/numtide/nix-conformance
 [numtide/nix-conformance]: https://github.com/numtide/nix-conformance
-[nix-eval-jobs]: https://github.com/nix-community/nix-eval-jobs
 [psyclyx/fix]: https://github.com/psyclyx/fix
 [snix]: https://snix.dev
