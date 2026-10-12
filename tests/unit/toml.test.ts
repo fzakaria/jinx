@@ -955,9 +955,8 @@ function oursFromToml(doc: string): unknown {
 }
 
 // Documents for the differential run, each with whether Nix accepts it.
-// Each exercises a construct whose conversion or rejection is worth
-// confirming against Nix itself; the flag catches the two sides agreeing
-// on "error" for different reasons.
+// The flag catches the two sides agreeing on "error" for different
+// reasons.
 const DIFF_DOCS: { doc: string; valid: boolean }[] = [
   // Integers in every radix and with separators.
   {

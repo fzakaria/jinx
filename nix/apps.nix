@@ -1,11 +1,10 @@
-# `nix run .#<name>`: the tools around the compiler, each a command with its
+# `nix run .#<name>`: the tools around the compiler, each with its
 # dependencies on PATH.
 {
   pkgs,
   jinx,
   nix-conformance,
-  # The built site (nix/site.nix), for `serve`. The flake passes its own
-  # packages.site; the default lets the app stand alone.
+  # The built site (nix/site.nix), for `serve`.
   site ? import ./site.nix {
     inherit pkgs;
     self = ../.;
@@ -23,31 +22,28 @@ in
     program = "${jinx}/bin/jinx";
   };
 
-  # Run the differential test corpus against the nix on PATH: every
-  # tests/corpus/*.nix is evaluated by both and the JSON compared
-  # (docs/verification.md).
+  # Evaluate every tests/corpus/*.nix with nix and with jinx and compare
+  # the JSON (docs/verification.md).
   corpus = tool "jinx-corpus" [ pkgs.nix jinx ] ''
     exec jinx test-corpus "''${1:-tests/corpus}"
   '';
 
-  # Run the nix-conformance suite through jinx and print the tally. The suite
-  # is a flake input so the pin is in flake.lock, not in a script.
+  # Run the nix-conformance suite (a flake input) through jinx and print
+  # the tally.
   conformance = tool "jinx-conformance" [ pkgs.nix jinx ] ''
     exec jinx test-conformance ${nix-conformance} "$@"
   '';
 
-  # Evaluate every attribute of a nixpkgs checkout twice, with nix-eval-jobs
-  # and with jinx, and report which drvPaths differ (docs/verification.md).
-  # Sized for leviathan: --workers defaults to the core count.
+  # Evaluate every attribute of a nixpkgs checkout with nix-eval-jobs and
+  # with jinx and report which drvPaths differ (docs/verification.md).
   parity = tool "jinx-parity" [ pkgs.nix pkgs.nix-eval-jobs pkgs.jq jinx ] ''
     exec ${./../tools/parity.sh} "$@"
   '';
 
-  # Time Nix and jinx evaluating the same probes and append the record to
-  # site/bench/history.json, which the site's benchmark page draws
-  # (docs/performance.md). The installed jinx is the evaluator measured;
-  # GNU time is the instrument. Run from the repository root: the history
-  # file and the commit id are taken relative to it.
+  # Time Nix and the installed jinx on the same probes under GNU time and
+  # append the record to site/bench/history.json (docs/performance.md).
+  # Run from the repository root, where the history file and the commit
+  # id are read.
   bench =
     tool "jinx-bench"
       [
@@ -60,11 +56,10 @@ in
         exec node ${./../tools/bench.ts} --jinx ${jinx}/bin/jinx "$@"
       '';
 
-  # Serve the built site, the tree the pages workflow deploys, on
-  # http://localhost:8137 (`nix run .#serve -- <port>` for another). The
-  # module tree, the bundle and the docs are plain static files, so this is
-  # python's http.server rooted at the derivation. no-store because store paths
-  # carry a 1970 mtime, and a 304 would keep a previous build's JS forever.
+  # Serve the built site on http://localhost:8137 (`nix run .#serve --
+  # <port>` for another) with python's http.server rooted at the
+  # derivation. no-store because store paths carry a 1970 mtime, and a 304
+  # would keep a previous build's JS forever.
   serve = {
     type = "app";
     program = "${pkgs.writeShellScript "jinx-serve" ''
@@ -77,9 +72,8 @@ in
           def __init__(self, *args, **kwargs):
               super().__init__(*args, directory=SITE, **kwargs)
 
-          # GitHub Pages resolves an extensionless request onto <path>.html,
-          # which is how /docs/design serves design.html. Doing the same here
-          # keeps the docs' own links working in a local preview.
+          # Resolve an extensionless request onto <path>.html, as GitHub
+          # Pages does for /docs/design.
           def send_head(self):
               path, sep, query = self.path.partition("?")
               local = self.translate_path(path)

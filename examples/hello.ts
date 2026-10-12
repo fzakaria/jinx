@@ -1,11 +1,11 @@
-// A derivation written by hand in TypeScript against nixpkgs, through the
-// jinx library. Run with a nixpkgs checkout:
+// A derivation written in TypeScript against nixpkgs through the jinx
+// library. Run with a nixpkgs checkout:
 //
 //   node --disable-warning=ExperimentalWarning examples/hello.ts /path/to/nixpkgs
 //
 // `pkgs` is nixpkgs compiled on demand; `stdenv.mkDerivation` and
 // `fetchurl` are the Nix functions, called with a plain object. The
-// drvPath printed is what Nix would compute for the same expression.
+// drvPath printed is the one Nix computes for the same expression.
 
 import { loadNixpkgs, show } from "../src/lib/index.ts";
 

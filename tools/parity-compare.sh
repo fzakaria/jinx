@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # Compare nix-eval-jobs output with jinx eval-jobs output
-# (docs/verification.md): tools/parity-compare.sh nix.jsonl jinx.jsonl out-dir
-# The jinx file may be several concatenated runs (--skip-done resumes).
+# (docs/verification.md).
+#
+#   tools/parity-compare.sh nix.jsonl jinx.jsonl out-dir
+#
+# The jinx file may be several runs concatenated (--skip-done resumes).
 set -euo pipefail
 nix=${1:?nix.jsonl}
 jinx=${2:?jinx.jsonl}
 out=${3:?out-dir}
 mkdir -p "$out"
-# Keyed on the attribute path as JSON: a name may contain a dot, and the
-# two tools quote such names differently in their `attr` field.
+# Keyed on the attribute path as JSON, since the two tools quote names
+# with dots differently in their `attr` field.
 jq -r 'select(.attrPath != null) | [(.attrPath | tojson), (.drvPath // ("ERROR: " + ((.error // "") | split("\n")[0])))] | @tsv' "$nix" | sort -u -k1,1 > "$out/nix.tsv"
 jq -r 'select(.attrPath != null) | [(.attrPath | tojson), (.drvPath // ("ERROR: " + ((.error // "") | split("\n")[0])))] | @tsv' "$jinx" | sort -u -k1,1 > "$out/jinx.tsv"
 join -t $'\t' "$out/nix.tsv" "$out/jinx.tsv" > "$out/joined.tsv"
@@ -37,7 +40,7 @@ join -t $'\t' "$out/nix.tsv" "$out/jinx.tsv" > "$out/joined.tsv"
 # The attributes to re-run with `eval-jobs --only`: one JSON array a line.
 awk -F'\t' '($2 !~ /^ERROR/ && $3 ~ /^ERROR/) || ($2 !~ /^ERROR/ && $3 !~ /^ERROR/ && $2 != $3) { print $1 }' "$out/joined.tsv" > "$out/rerun.txt"
 join -t $'\t' -v1 "$out/nix.tsv" "$out/jinx.tsv" | cut -f1 >> "$out/rerun.txt"
-# The work queue: jinx errors grouped by message, and differing drvPaths.
+# jinx errors grouped by message, and differing drvPaths.
 awk -F'\t' '$2 !~ /^ERROR/ && $3 ~ /^ERROR/ { print $3 }' "$out/joined.tsv" | sed -E 's/[0-9a-z]{32}-[^ ]*//g; s/[0-9]+/N/g' | sort | uniq -c | sort -rn | head -40 > "$out/jinx-errors.txt"
 awk -F'\t' '$2 !~ /^ERROR/ && $3 !~ /^ERROR/ && $2 != $3 { print $1 "\t" $2 "\t" $3 }' "$out/joined.tsv" | head -200 > "$out/differ.tsv"
 awk -F'\t' '$2 ~ /^ERROR/ && $3 !~ /^ERROR/ { print $1 "\t" $2 }' "$out/joined.tsv" | head -100 > "$out/nix-errors.tsv"

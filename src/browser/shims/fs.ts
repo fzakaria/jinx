@@ -1,6 +1,6 @@
 // node:fs for the browser bundle: the playground has no filesystem, so
-// every read reports a missing file. A future build can serve a source
-// tree over fetch (docs/ideas.md, "Derivations in the browser").
+// every read reports a missing file. fs-remote.ts is the shim for a tree
+// served over HTTP.
 class Missing extends Error {
   readonly code = "ENOENT";
 }

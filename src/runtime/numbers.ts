@@ -5,10 +5,9 @@
 //   toString / string interpolation   std::to_string(double)   == printf "%f"
 //   toXML, the REPL, error messages   operator<< on ostream    == printf "%g"
 //   toJSON                            nlohmann::json's dump    shortest round-trip
-// glibc rounds the exact binary value of the double (round-half-to-even on
-// ties), so the first two expand the double to its exact decimal digits with
-// BigInt rather than trusting Number#toFixed, which does the same job but is
-// specified loosely enough to be unsafe above 1e21.
+// glibc rounds the exact binary value of the double, half to even, so the
+// first two expand the double to its exact decimal digits with BigInt.
+// Number#toFixed would do the same job but is loosely specified above 1e21.
 
 import { NixError } from "./value.ts";
 

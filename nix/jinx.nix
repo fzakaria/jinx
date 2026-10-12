@@ -1,18 +1,16 @@
-# The `jinx` command: the compiler, the runtime and the CLI, type-checked by
-# tsc and installed as one wrapper around node.
+# The `jinx` command: the compiler, the runtime and the CLI, type-checked
+# by tsc and installed as a wrapper around node.
 #
-# There is deliberately no npm dependency, so there is no lockfile and no
-# npmDepsHash to keep current: the code uses the node standard library only
-# (fs, crypto, worker_threads). node 24 executes TypeScript directly by
-# stripping the types, which is what the wrapper relies on; tsc runs here
-# only to check, and emits nothing.
+# There is no npm dependency, so no lockfile and no npmDepsHash: the code
+# uses node's standard library only. node 24 runs TypeScript by stripping
+# the types; tsc only checks.
 { pkgs, self }:
 pkgs.stdenvNoCC.mkDerivation {
   pname = "jinx";
   version = "0.1.0";
   src = pkgs.lib.cleanSourceWith {
     src = self;
-    # The source the compiler is built from: the TypeScript and its config.
+    # The TypeScript and its config.
     filter =
       path: type:
       let
@@ -29,7 +27,7 @@ pkgs.stdenvNoCC.mkDerivation {
     pkgs.typescript
   ];
 
-  # tsc is the test here: the build fails on a type error.
+  # The build fails on a type error.
   buildPhase = ''
     runHook preBuild
     ln -s ${import ./types-node.nix { inherit pkgs; }}/node_modules node_modules
@@ -41,9 +39,9 @@ pkgs.stdenvNoCC.mkDerivation {
     runHook preInstall
     mkdir -p $out/lib/jinx $out/bin
     cp -r src package.json tsconfig.json $out/lib/jinx/
-    # A Nix evaluation recurses deeper than node's default stack, and
-    # deeper than the 8 MB the OS gives the main thread: the wrapper lifts
-    # the OS limit where it can and hands V8 a stack to match.
+    # A Nix evaluation recurses deeper than node's default stack and than
+    # the OS's 8 MB main-thread stack. The wrapper lifts the OS limit where
+    # it can and gives V8 a stack to match.
     cat > $out/bin/jinx <<WRAPPER
     #!${pkgs.runtimeShell}
     ulimit -s unlimited 2>/dev/null || ulimit -s "\$(ulimit -Hs)" 2>/dev/null || true

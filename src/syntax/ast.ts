@@ -50,7 +50,7 @@ export interface FloatExpr {
 
 // A string literal is a sequence of literal text and interpolated
 // expressions. Indented strings arrive here with their indentation already
-// stripped; by this point the two spellings are the same thing.
+// stripped, so the two spellings are the same here.
 export type StringPart = string | Expr;
 
 export interface StringExpr {

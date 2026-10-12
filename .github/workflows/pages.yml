@@ -1,6 +1,5 @@
-# Publishes the site to GitHub Pages. The deployed tree is exactly
-# `nix build .#site` — the same one `nix run .#serve` tests locally —
-# so this job builds and uploads, and decides nothing.
+# Publish the site to GitHub Pages. The deployed tree is `nix build
+# .#site`; this job builds and uploads it.
 #
 # One-time setup: repository Settings -> Pages -> Source: "GitHub Actions",
 # and the custom domain in site/CNAME pointed at GitHub's servers.
@@ -26,7 +25,7 @@ permissions:
   pages: write
   id-token: write
 
-# Deploys must land in order; a newer push supersedes an in-flight one.
+# A newer push supersedes an in-flight deploy.
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -48,8 +47,8 @@ jobs:
             accept-flake-config = true
 
       - name: Build the site
-        # The store output is read-only and symlinked; the pages artifact
-        # needs a plain writable directory, so dereference-copy it out.
+        # The pages artifact needs a plain writable directory, not the
+        # read-only store output.
         run: |
           nix build .#site -L
           cp -rL result _site

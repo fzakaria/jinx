@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The whole-nixpkgs parity run (docs/verification.md, level 4): evaluate
-# every attribute with nix-eval-jobs and with jinx and diff the drvPaths.
+# The whole-nixpkgs parity run (docs/verification.md): evaluate every
+# attribute with nix-eval-jobs and with jinx and diff the drvPaths.
 #
 #   tools/parity.sh <nixpkgs> [--workers N] [--system x86_64-linux] [--out work/parity]
 #
@@ -9,16 +9,14 @@
 #   jinx.jsonl     jinx eval-jobs output
 #   compare/       report.md, joined.tsv, jinx-errors.txt, differ.tsv, rerun.txt
 #
-# nixpkgs' own CI configuration is used for both sides so the attribute
-# set is the one Hydra evaluates (ci/eval/outpaths.nix: allowAliases =
-# false, allowUnfree = true, checkMeta = true, inHydra = true), and both
-# run impurely in the same environment, since a few derivations embed
-# getEnv. After a fix, `jinx eval-jobs --only compare/rerun.txt` re-runs
-# the flagged attributes alone and tools/parity-compare.sh re-joins.
+# Both sides use nixpkgs' CI configuration (ci/eval/outpaths.nix:
+# allowAliases = false, allowUnfree = true, checkMeta = true, inHydra =
+# true) and run impurely in the same environment, since a few derivations
+# embed getEnv. After a fix, `jinx eval-jobs --only compare/rerun.txt`
+# re-runs the flagged attributes and tools/parity-compare.sh re-joins.
 #
-# Sized for a large machine: nix-eval-jobs takes about 4 GB a worker and
-# jinx about 5; 32 workers of each fit in 250 GB and finish in under half
-# an hour each.
+# nix-eval-jobs takes about 4 GB a worker and jinx about 5; 32 workers of
+# each fit in 250 GB and finish in under half an hour each.
 set -euo pipefail
 
 nixpkgs=""

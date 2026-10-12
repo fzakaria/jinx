@@ -70,7 +70,7 @@ function buildTrees(): void {
 
   writeFileSync(`${TREE}/a`, "regular file\n");
   writeFileSync(`${TREE}/B`, "capital\n");
-  writeFileSync(`${TREE}/_x`, "underscore\n");
+  writeFileSync(`${TREE}/_x`, "leading _\n");
   writeFileSync(`${TREE}/10`, "ten\n");
   writeFileSync(`${TREE}/9`, "nine\n");
   writeFileSync(`${TREE}/empty`, "");

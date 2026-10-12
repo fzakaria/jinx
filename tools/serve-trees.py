@@ -4,9 +4,8 @@
     python3 tools/serve-trees.py [--port 8765] --mount /URL=PATH ...
 
 Each --mount maps a URL prefix to a file or a directory; the longest
-matching prefix wins. The page wants the compiled tree, the nixpkgs
-source it was compiled from, and an index of each (tools/index-tree.ts),
-and may as well be served from the same process:
+matching prefix wins. The page needs the compiled tree, the nixpkgs
+source it was compiled from, and an index of each (tools/index-tree.ts):
 
     python3 tools/serve-trees.py \
       --mount /=site \
@@ -16,8 +15,7 @@ and may as well be served from the same process:
       --mount /src/index.json=/path/to/src-index.json
 
 Symlinks are followed, since a tree's runtime may be one. Every response
-carries CORS headers so the page can live on another origin, the way a
-deployed page reads a published tree.
+carries CORS headers so the page can live on another origin.
 """
 
 import argparse

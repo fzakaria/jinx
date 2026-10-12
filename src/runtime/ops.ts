@@ -1,6 +1,6 @@
 // The operations the emitted code calls: selection, application, the
 // operators, coercions and scoping. Each mirrors one evaluation rule of
-// Nix's eval.cc, named after what the Nix syntax looked like.
+// Nix's eval.cc and is named after the Nix syntax.
 
 import {
   type PlainAttrs,

@@ -4,7 +4,7 @@
 > the left pane is compiled to the TypeScript in the middle pane, which
 > is evaluated in the tab into the value on the right. A `derivation`
 > call produces the `.drv` Nix would, with the same drvPath and output
-> paths; nothing runs on a server and no nix binary is involved.
+> paths. Nothing runs on a server.
 
 ## The URL is the state
 
@@ -13,9 +13,8 @@ The editor's contents live in the URL hash, so a snippet is a link:
 - `#code=<base64>` the Nix source, UTF-8, base64-encoded (standard or
   URL-safe alphabet, padding optional)
 
-The page rewrites the hash as the editor changes, so whatever is on
-screen is always a link. With no hash the page shows the "a derivation"
-example.
+The page rewrites the hash as the editor changes. With no hash the page
+shows the "a derivation" example.
 
 ## Reading the page
 

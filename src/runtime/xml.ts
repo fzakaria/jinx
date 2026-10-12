@@ -28,8 +28,7 @@ import { formatFloatG } from "./numbers.ts";
 
 export interface XmlHooks {
   // Nix prints a path's absolute filename as-is and never copies it to
-  // the store, so this hook is accepted for symmetry with toJSON but is
-  // not used.
+  // the store; this hook exists for symmetry with toJSON and is unused.
   copyPathToStore?: (p: Path) => Str;
 }
 
@@ -48,11 +47,10 @@ const DERIVATION_TYPE = "derivation";
 const DRV_PATH_ATTR = "drvPath";
 const OUT_PATH_ATTR = "outPath";
 
-// Our Lambda metadata does not record the parameter name of a
-// single-argument lambda (Nix prints it as `<varpat name="arg" />`), nor
-// the `@` binding of a formals pattern. We use the lambda's nixName when
-// present and otherwise this placeholder, and never emit the `name`
-// attribute on `<attrspat>`.
+// Lambda metadata records neither the parameter name of a single-argument
+// lambda (Nix prints `<varpat name="arg" />`) nor the `@` binding of a
+// formals pattern. The lambda's nixName stands in when present and this
+// placeholder otherwise, and `<attrspat>` never gets a `name` attribute.
 const DEFAULT_VARPAT_NAME = "x";
 
 // Attributes of an element, in the order they are written. Nix stores
@@ -261,8 +259,8 @@ function printFunction(fn: Value, state: PrintState): void {
   if (formals === undefined) {
     w.empty("varpat", [["name", lambda.nixName ?? DEFAULT_VARPAT_NAME]]);
   } else {
-    // `ellipsis="1"` only when the pattern has one; see the note on
-    // DEFAULT_VARPAT_NAME for why no `name` attribute is emitted.
+    // `ellipsis="1"` only when the pattern has one; no `name` attribute
+    // (see DEFAULT_VARPAT_NAME).
     const attrs: XmlAttrs = formals.ellipsis ? [["ellipsis", "1"]] : [];
     w.open("attrspat", attrs);
     for (const name of Object.keys(formals.args).sort(compareNames)) {

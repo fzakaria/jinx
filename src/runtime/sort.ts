@@ -1,9 +1,9 @@
-// Nix's `builtins.sort` is not std::sort. Since Nix 2.27 it is an in-house
-// stable peeksort (a natural mergesort), with insertion sort for short ranges,
-// from src/libutil/include/nix/util/sort.hh. nixpkgs contains comparators that
-// are not strict weak orderings (`a: b: true`, `<=`), and for those the exact
-// sequence of comparisons decides the output. This file transcribes the C++
-// one statement at a time so that jinx produces the same permutation.
+// builtins.sort, as Nix 2.27 and later implement it: a stable peeksort (a
+// natural mergesort) with insertion sort for short ranges, from
+// src/libutil/include/nix/util/sort.hh. nixpkgs has comparators that are
+// not strict weak orderings (`a: b: true`, `<=`), and for those the exact
+// sequence of comparisons decides the output, so this file transcribes the
+// C++ statement by statement.
 //
 // Indices stand in for iterators: a half-open range [begin, end) over `items`.
 
@@ -34,7 +34,7 @@ function mergeSortedRunsInPlace<T>(
   let left = 0;
   let right = workingMiddle;
 
-  // Note the inversion !less(right, left): required for the merge to be stable.
+  // The inversion !less(right, left) keeps the merge stable.
   while (left !== workingMiddle && right !== workingEnd) {
     const takeLeft = !less(buffer[right] as T, buffer[left] as T);
     items[output++] = takeLeft ? (buffer[left++] as T) : (buffer[right++] as T);

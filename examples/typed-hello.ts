@@ -1,19 +1,19 @@
-// The hello example (examples/hello.ts) with a typed package set: `pkgs.`
-// completes in an editor, `pkgs.hello.drvPath` is a string, and a typo in
-// an attribute name is a type error.
+// examples/hello.ts with a typed package set: `pkgs.` completes in an
+// editor, `pkgs.hello.drvPath` is a string, and a typo in an attribute
+// name is a type error.
 //
-// The type comes from a declaration file generated from nixpkgs itself
-// (work/ is gitignored, so generate it once per checkout):
+// The type comes from a declaration file generated from nixpkgs (work/ is
+// gitignored, so generate it once per checkout):
 //
 //   node --stack-size=1000000 --max-old-space-size=32000 \
 //     tools/gen-nixpkgs-dts.ts "$(nix eval --raw nixpkgs#path)"
 //
-// Then run as the untyped example does:
+// Then:
 //
 //   node --disable-warning=ExperimentalWarning examples/typed-hello.ts /path/to/nixpkgs
 //
-// `loadNixpkgs` returns an untyped view; the annotation on `pkgs` is what
-// puts the generated type on it.
+// `loadNixpkgs` returns an untyped view; the annotation on `pkgs` gives it
+// the generated type.
 
 import type { Nixpkgs } from "../work/nixpkgs.d.ts";
 import { loadNixpkgs } from "../src/lib/index.ts";

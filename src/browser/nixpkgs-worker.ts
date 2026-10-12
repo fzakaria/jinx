@@ -191,9 +191,8 @@ function str(v: nix.Lazy): string {
 }
 
 // meta.position is "<abs file>:<line>"; the page wants it relative to the
-// nixpkgs root. The runtime does not record attribute positions yet
-// (builtins.unsafeGetAttrPos is null), so for a top-level attribute the
-// pkgs/by-name file of that name, when there is one, stands in.
+// nixpkgs root. When a package has no meta.position, the pkgs/by-name
+// file of a top-level attribute's name stands in when there is one.
 function positionOf(attr: string, pkg: nix.Attrs): string | null {
   const meta = nix.getAttr(pkg, "meta");
   const m = meta === undefined ? null : nix.force(meta);

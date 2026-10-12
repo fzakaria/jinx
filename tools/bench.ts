@@ -1,21 +1,19 @@
-// Measure Nix and jinx evaluating the same things, and append one record
-// to the history the site's benchmark page (site/bench/) draws.
+// Time Nix and jinx on the same probes and append one record to the
+// history the benchmark page (site/bench/) draws.
 //
 //   node tools/bench.ts [--nixpkgs <path>] [--history <file>] [--probes a,b]
 //                       [--runs N] [--jinx <exe>]
 //
-// Every probe is one Nix file written against --nixpkgs (the store path
-// `nix eval --raw nixpkgs#path` names, by default). nix-instantiate
-// evaluates it to JSON, then jinx does twice: cold, into an empty cache,
-// which pays for compiling every module the evaluation touches; and warm,
-// into the cache the cold run left, which only loads the compiled modules.
-// Each timing is the median of --runs runs under GNU time, so a record
-// carries wall seconds and peak RSS for all three, and whether the three
-// outputs agreed (docs/performance.md).
+// Each probe is one Nix file against --nixpkgs (default: the store path of
+// `nix eval --raw nixpkgs#path`). nix-instantiate evaluates it to JSON,
+// then jinx twice: cold, into an empty cache, so the run includes compiling
+// every module it touches; and warm, into the cache the cold run left. Each
+// timing is the median of --runs runs under GNU time: wall seconds and peak
+// RSS, plus whether the three outputs agreed (docs/performance.md).
 //
-// `nix run .#bench` (nix/apps.nix) runs the same with nix, node and time
-// on PATH and the installed jinx as --jinx; without --jinx the tool runs
-// src/cli/main.ts beside it the way the installed wrapper does.
+// `nix run .#bench` (nix/apps.nix) runs this with nix, node and time on
+// PATH and the installed jinx as --jinx. Without --jinx the tool runs
+// src/cli/main.ts the way the installed wrapper does.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -37,10 +35,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_RUNS = 3;
 const DEFAULT_HISTORY = "site/bench/history.json";
 const NIXPKGS_FLAKE = "nixpkgs";
-// What a channel tarball names its commit by.
+// The file a channel tarball records its commit in.
 const NIXPKGS_REVISION_MARKER = ".git-revision";
-// What the installed wrapper (nix/jinx.nix) gives node; the tool gives the
-// same so that a run through `node tools/bench.ts` measures what `jinx` does.
+// The node flags of the installed wrapper (nix/jinx.nix), so that a run
+// through `node tools/bench.ts` measures what `jinx` does.
 const NODE_STACK_SIZE = "1000000";
 const NODE_FLAGS = [
   "--disable-warning=ExperimentalWarning",
@@ -64,17 +62,17 @@ const HISTORY_DESCRIPTION =
   "probes on one machine, wall seconds and peak RSS as the median of " +
   "repeated runs, jinx cold (compiling on demand into an empty cache) and " +
   "warm (the compiled modules present). See site/bench/ and docs/performance.md.";
-// How much of a failed command's stderr the record keeps: the head, since
-// an evaluator states the error first and the trace after it.
+// How much of a failed command's stderr the record keeps. The error comes
+// first and the trace after it.
 const ERROR_HEAD_CHARS = 400;
 
-// How the attribute sets the probes import nixpkgs with.
+// The arguments the probes import nixpkgs with.
 const PKGS_DEFAULT = "{ }";
 const PKGS_SAMPLE =
   '{ system = "x86_64-linux"; config = { allowUnfree = true; allowAliases = false; }; overlays = [ ]; }';
 
-// The 66-package sample docs/verification.md reports parity on: large and
-// small packages across language ecosystems, cross and static builds.
+// The 66-package sample of docs/verification.md: large and small packages
+// across language ecosystems, cross and static builds.
 const SAMPLE_ATTRS = [
   "hello",
   "python3",
@@ -144,10 +142,10 @@ const SAMPLE_ATTRS = [
   "nixos-rebuild",
 ];
 
-// A NixOS configuration small enough to evaluate in seconds and large
-// enough to pull the whole module system through.
+// A NixOS configuration that evaluates in seconds but pulls in the whole
+// module system.
 const NIXOS_CONFIGURATION =
-  '{ fileSystems."/".device = "/dev/sda1"; boot.loader.grub.device = "/dev/sda"; system.stateVersion = "25.11"; }';
+  '{ fileSystems."/" = { device = "/dev/sda1"; fsType = "ext4"; }; boot.loader.grub.device = "/dev/sda"; system.stateVersion = "25.11"; }';
 
 interface Probe {
   readonly description: string;
@@ -198,8 +196,8 @@ const PROBES: ReadonlyMap<string, Probe> = new Map<string, Probe>([
 ]);
 
 // The sample as one attribute set of drvPaths. A package that fails to
-// evaluate is recorded as "ERROR" rather than aborting the probe, since
-// docs/verification.md expects one (docker) to fail on both sides.
+// evaluate is recorded as "ERROR" instead of aborting the probe; one
+// (docker) fails on both sides.
 function sampleExpression(nixpkgs: string): string {
   const attrs = SAMPLE_ATTRS.map((a) => JSON.stringify(a)).join(" ");
   return [
@@ -270,7 +268,7 @@ function parseArgs(argv: readonly string[]): Options {
     }
   }
 
-  // Every probe asked for must exist; a typo should not cost a run.
+  // Reject an unknown probe name before any run.
   for (const name of probes) {
     if (!PROBES.has(name)) {
       process.stderr.write(`bench: unknown probe ${name}\n`);
@@ -324,9 +322,8 @@ interface Timed extends Run {
   readonly measurement: Measurement;
 }
 
-// Run a command under GNU time: wall seconds and peak RSS come from the
-// kernel's account of the child, into a file so the command's own output
-// stays its own.
+// Run a command under GNU time. The wall seconds and peak RSS go to a
+// file so the command's own output stays separate.
 function timed(command: readonly string[], scratch: string): Timed {
   const report = join(scratch, "time.txt");
   rmSync(report, { force: true });
@@ -345,9 +342,8 @@ function timed(command: readonly string[], scratch: string): Timed {
   };
 }
 
-// GNU time is the instrument; bash's `time` keyword and BSD time print
-// nothing the tool can read, so the run stops here rather than on the
-// first probe.
+// Bash's `time` keyword and BSD time print nothing the tool can parse, so
+// the check for GNU time comes before the first probe.
 function checkGnuTime(): void {
   const result = run(["time", "--version"]);
   const text = result.stdout + result.stderr;
@@ -362,9 +358,9 @@ function nixCommand(file: string): string[] {
   return ["nix-instantiate", ...NIX_INSTANTIATE_FLAGS, file];
 }
 
-// jinx on a probe. The installed wrapper lifts the stack limit itself;
-// running from the tree, the tool does what the wrapper does: raise the OS
-// limit in a shell and hand V8 a stack to match.
+// jinx on a probe. The installed wrapper lifts the stack limit itself; from
+// the tree, the tool raises the OS limit in a shell and gives V8 a stack to
+// match.
 function jinxCommand(
   jinx: string | null,
   file: string,
@@ -405,9 +401,9 @@ function medianMeasurement(runs: readonly Measurement[]): Measurement {
   };
 }
 
-// The value an evaluator printed, as JSON with its keys sorted, so two
-// evaluators that agree compare equal however they laid the text out. The
-// last line of stdout is the value: a probe may trace to stdout first.
+// The value an evaluator printed, as JSON with sorted keys, so two
+// evaluators that agree compare equal. The value is the last line of
+// stdout; a probe may trace before it.
 function canonical(stdout: string): string {
   const line = stdout.trim().split("\n").at(-1) ?? "";
   const sort = (v: unknown): unknown => {
@@ -432,9 +428,8 @@ interface Phase {
   readonly error: string | null;
 }
 
-// A command measured `count` times. The value is the first run's; a
-// command that fails stops the phase and the record carries the head of
-// what it said.
+// A command measured `count` times. The value is the first run's. A
+// failure stops the phase and the record keeps the head of its stderr.
 function phase(
   count: number,
   scratch: string,
@@ -479,12 +474,12 @@ function measureProbe(
   const file = join(scratch, `${name}.nix`);
   writeFileSync(file, probe.expression(nixpkgs) + "\n");
 
-  // Nix first: its value is the reference the jinx runs are held to.
+  // Nix first: its value is the reference.
   const nix = phase(options.runs, scratch, () => nixCommand(file));
   report(name, "nix", nix);
 
-  // Cold: every run gets an empty cache, so each pays the compile. The last
-  // run's cache stays for the warm phase; the others go as they finish.
+  // Cold: every run gets an empty cache. The last run's cache stays for the
+  // warm phase.
   let cache = "";
   const cold = phase(options.runs, scratch, () => {
     if (cache !== "") {
@@ -495,7 +490,7 @@ function measureProbe(
   });
   report(name, "jinx cold", cold);
 
-  // Warm: the same cache, now holding every compiled module.
+  // Warm: the cache the cold run filled.
   const warm =
     cold.error === null
       ? phase(options.runs, scratch, () =>
@@ -568,8 +563,8 @@ function machine(): Machine {
   };
 }
 
-// The commit the numbers belong to: jj's parent of the working copy, which
-// in a colocated repository is git's HEAD; plain git where there is no jj.
+// The commit the numbers belong to: the parent of jj's working copy (git's
+// HEAD in a colocated repository), or git's HEAD where there is no jj.
 function jinxCommit(): string {
   const jj = run(["jj", "log", "-r", "@-", "--no-graph", "-T", "commit_id"]);
   if (jj.status === 0 && jj.stdout.trim() !== "") {
@@ -578,9 +573,9 @@ function jinxCommit(): string {
   return output(["git", "rev-parse", "HEAD"]);
 }
 
-// The nixpkgs revision: the marker a channel tarball carries, else what the
-// registry's flake resolved to when --nixpkgs defaulted to it, else the
-// store path's own name.
+// The nixpkgs revision: a channel tarball's marker file, else the
+// registry's resolved revision when --nixpkgs was defaulted, else the store
+// path's name.
 function nixpkgsName(path: string, fromRegistry: boolean): string {
   const marker = join(path, NIXPKGS_REVISION_MARKER);
   if (existsSync(marker)) {
@@ -662,7 +657,7 @@ function main(argv: readonly string[]): number {
   history.records.push(record);
   saveHistory(options.history, history);
 
-  // The summary: the ratios the page's table shows.
+  // The ratios the page's table shows.
   process.stdout.write(
     `\n${"probe".padEnd(8)} ${"nix".padStart(8)} ${"cold".padStart(8)} ${"warm".padStart(8)} ${"cold/nix".padStart(9)} ${"warm/nix".padStart(9)}  match\n`,
   );

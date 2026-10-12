@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>jinx — nixpkgs in the browser</title>
+    <title>jinx: nixpkgs in the browser</title>
     <meta
       name="description"
       content="Real nixpkgs, evaluated in this tab: type an attribute and get its derivation path and output path, computed by the compiled nixpkgs tree with no server-side evaluation."
@@ -15,7 +15,7 @@
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="jinx" />
-    <meta property="og:title" content="jinx — nixpkgs in the browser" />
+    <meta property="og:title" content="jinx: nixpkgs in the browser" />
     <meta
       property="og:description"
       content="Type a nixpkgs attribute; the tab evaluates the compiled nixpkgs tree, module by module, and computes the derivation Nix would."
@@ -55,9 +55,9 @@
     <p class="intro">
       <strong class="lede">nixpkgs, evaluated in this tab.</strong> Every <code>.nix</code> file of
       nixpkgs was compiled to a TypeScript module. Type an attribute and the page runs those modules,
-      fetched one by one as the evaluation reaches them, and computes
+      fetched as the evaluation reaches them, and computes
       <code>pkgs.&lt;attr&gt;.drvPath</code> and its output path:
-      <span class="claim">the same store paths Nix computes, with no evaluator on any server.</span>
+      <span class="claim">the same store paths Nix computes, with no server.</span>
       If Hydra built the output, trynix can boot it in another tab.
     </p>
 

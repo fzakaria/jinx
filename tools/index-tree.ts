@@ -1,23 +1,23 @@
 // Index a directory tree for the browser: one JSON document that answers
-// readDir, pathExists and lstat for every path under the root, so the
-// page knows what exists before it fetches anything.
+// readdir, exists and lstat for every path under the root, so the page
+// fetches only files it knows exist.
 //
 //   node tools/index-tree.ts <dir> <out.json> [--skip <name>]...
 //
-// --skip leaves a top-level entry out: the .git of a checkout, or the
-// nixpkgs symlink a published tree carries for local use.
+// --skip leaves a top-level entry out, such as .git or the nixpkgs symlink
+// of a published tree.
 //
-// The format is the one src/browser/shims/fs-remote.ts reads. nixpkgs has
-// ~100k entries, so it is kept compact: a directory is an object from
-// entry name to entry, and the entry's JSON type says what it is.
+// The format is what src/browser/shims/fs-remote.ts reads. A directory is
+// an object from entry name to entry, and the entry's JSON type says what
+// it is:
 //
 //   number     a regular file, the number its size in bytes
 //   [number]   a regular executable file, the number its size in bytes
 //   string     a symlink, the string its target
 //   object     a directory
 //
-// Nothing is followed: a symlink is recorded as a symlink, as lstat and
-// the NAR serialisation see it.
+// Symlinks are recorded, not followed, as lstat and the NAR serialisation
+// see them.
 import { lstatSync, readdirSync, readlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -46,8 +46,7 @@ export function indexDir(dir: string): IndexDir {
       out[name] = (st.mode & MODE_ANY_EXECUTE) !== 0 ? [st.size] : st.size;
       continue;
     }
-    // Sockets, devices and the like: not in a source tree, and nothing
-    // the runtime could read, so they are left out.
+    // Sockets, devices and the like are left out.
   }
   return out;
 }

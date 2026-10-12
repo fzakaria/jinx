@@ -1,8 +1,7 @@
 // The nixpkgs page. A worker (js/nixpkgs-worker.js) evaluates the compiled
-// nixpkgs tree named by config.json; this page is the form in front of
-// it: an attribute goes in, the derivation and output paths come out,
-// with a link to boot the output in trynix. The URL hash carries the
-// attribute, so a result is a link:
+// nixpkgs tree named by config.json. An attribute goes in, the derivation
+// and output paths come out, with a link to boot the output in trynix. The
+// URL hash carries the attribute, so a result is a link:
 //
 //   #attr=hello
 
@@ -73,8 +72,8 @@ function showActivity(a) {
   $("fetch-activity").textContent = `${describeActivity(a)}${last}`;
 }
 
-// The package set is evaluated once; its time stays on screen since every
-// result's own time is measured from after it.
+// The package set is evaluated once; its time stays on screen, and each
+// result's time is measured from after it.
 function showSetTime(millis) {
   $("set-time").textContent = `package set in ${formatMillis(millis)} · `;
 }

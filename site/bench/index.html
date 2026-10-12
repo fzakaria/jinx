@@ -50,11 +50,10 @@
         <strong class="lede">jinx against Nix, on the same machine.</strong> Each record is one
         run of
         <a href="https://github.com/fzakaria/jinx/blob/main/tools/bench.ts">tools/bench.ts</a>:
-        a handful of evaluations that nix-instantiate and jinx both perform on the same nixpkgs,
-        timed under GNU time as the median of three runs. jinx runs twice: cold, into an empty
-        cache, which pays for compiling every module the evaluation touches; and warm, with the
-        compiled modules already there. The outputs are compared, so a point on these charts is
-        also a parity check.
+        a few evaluations that nix-instantiate and jinx both perform on the same nixpkgs, timed
+        under GNU time as the median of three runs. jinx runs cold, into an empty cache, which
+        includes compiling every module the evaluation touches, and warm, with the compiled
+        modules present. The outputs are compared, so each point is also a parity check.
         <a href="../docs/performance">performance.md</a> says what each probe is and where
         jinx's time goes.
       </p>

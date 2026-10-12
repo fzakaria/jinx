@@ -173,8 +173,8 @@ export function attrPos(a: Attrs, name: string): Pos | null {
 
 // `base // over` without copying base. nixpkgs builds its package set as
 // a fixpoint over a chain of overlays, each `//` of a set with tens of
-// thousands of attributes; copying every layer is where an evaluation's
-// time went. A lookup walks the layers from the top; the chain is
+// thousands of attributes, and copying every layer dominated evaluation
+// time. A lookup walks the layers from the top; the chain is
 // flattened into one plain set when it gets deep or when it is
 // enumerated, and the flat set is kept.
 export class Layered {
@@ -278,7 +278,7 @@ export function attrKeys(a: Attrs): string[] {
 }
 
 // Sizes of plain sets, counted once: sets are immutable, and counting a
-// large one on every `//` was itself a cost.
+// large one on every `//` is a cost.
 const sizes = new WeakMap<PlainAttrs, number>();
 
 export function attrCount(a: Attrs): number {

@@ -3,8 +3,7 @@
 // A compiled tree mirrors its source tree: `<src>/pkgs/a/default.nix`
 // becomes `<out>/pkgs/a/default.ts`, and `<out>/.jinx/config.json` says
 // where `<src>` is. Loading goes through require(), which is synchronous
-// and memoised per file, which is exactly Nix's import: lazy, evaluated
-// once, shared by every importer.
+// and memoised per file, the same as Nix's import.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";

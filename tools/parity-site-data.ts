@@ -1,5 +1,5 @@
-// Turn one whole-nixpkgs parity run (tools/parity.sh, docs/verification.md
-// level 4) into the JSON the site's parity page (site/parity/) draws.
+// Turn one whole-nixpkgs parity run (tools/parity.sh, docs/verification.md)
+// into the JSON the parity page (site/parity/) draws.
 //
 //   node tools/parity-site-data.ts --joined joined.tsv.gz --nix nix.jsonl.gz
 //       --jinx jinx.jsonl.gz --rev <nixpkgs commit> [--nixpkgs <source>]
@@ -8,20 +8,18 @@
 //       [--earlier-attributes N] [--workers N]
 //       [--host NAME] [--cores N] [--memory-gb N]
 //
-// The inputs are what the parity run leaves behind: `joined.tsv.gz`, one
-// line per attribute (the attrPath as a JSON array, Nix's drvPath or
-// `ERROR: <first line>`, jinx's), and the two nix-eval-jobs-style
-// `.jsonl.gz` outputs, read here for the error messages the joined file
-// truncates. `--nixpkgs` names the nixpkgs source of the run so that a
-// top-level attribute with a `pkgs/by-name` entry can link to it.
+// Inputs: `joined.tsv.gz`, one line per attribute (the attrPath as a JSON
+// array, Nix's drvPath or `ERROR: <first line>`, jinx's), and the two
+// `.jsonl.gz` outputs, read for the error messages the joined file
+// truncates. `--nixpkgs` names the nixpkgs source so a top-level attribute
+// with a `pkgs/by-name` entry can link to it.
 //
-// The output is `<out>/<rev>.json` plus `<out>/index.json`, the list of
-// revisions the page can show. The JSON keeps every attribute path for the
-// page's search, so the encoding matters: the paths are split into a base
-// (the path without its trailing system) and one outcome digit per system,
-// the sorted bases share their prefix with the previous line, and a run of
-// bases with the same outcomes is one line. That is 231k paths in under
-// 1 MB instead of 9, which keeps the file under jj's snapshot limit.
+// Output: `<out>/<rev>.json` and `<out>/index.json`, the list of revisions
+// the page can show. The JSON keeps every attribute path for the page's
+// search, so the encoding is compact: a path splits into a base (the path
+// without its trailing system) and one outcome digit per system, sorted
+// bases share a prefix with the previous line, and a run of bases with the
+// same outcomes is one line. 231k paths fit in under 1 MB.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -41,16 +39,15 @@ const SCHEMA_VERSION = 1;
 const NIXPKGS_COMMIT_URL = "https://github.com/NixOS/nixpkgs/commit/";
 const BY_NAME_DIR = join("pkgs", "by-name");
 
-// The systems the run covers, in the order the page's per-system bars and
-// the per-base outcome strings use. The fourth slot is for the attributes
-// whose path has no system at the end (nixpkgs' sentinel attributes).
+// The systems the run covers, in the order of the page's per-system bars
+// and the per-base outcome strings. A fourth slot holds the attributes
+// with no system at the end of their path.
 const SYSTEMS = ["x86_64-linux", "aarch64-linux", "aarch64-darwin"];
 const NO_SYSTEM = "";
 
-// The outcome of one attribute, as the joined file classifies it and as the
-// page's data encodes it: one digit per attribute. (A const object rather
-// than an enum: node runs this file with types stripped, and an enum is
-// not erasable.)
+// The outcome of one attribute, one digit each in the page's data. A const
+// object rather than an enum, since node strips types and an enum is not
+// erasable.
 const Outcome = {
   Identical: 0,
   BothError: 1,
@@ -72,19 +69,19 @@ type Counts = Record<OutcomeKey, number>;
 const ERROR_MARK = "ERROR: ";
 const ABSENT_MARK = "-";
 const BY_NAME_MARK = "+";
-// A shared-prefix length is one base-36 digit, so at most 35 characters are
-// shared with the previous line; the rest is repeated.
+// A shared-prefix length is one base-36 digit, so at most 35 characters
+// are shared with the previous line.
 const PREFIX_RADIX = 36;
 const MAX_SHARED_PREFIX = PREFIX_RADIX - 1;
 // A code line repeated for the next bases is written once with its count.
 const RUN_MARK = "*";
 
-// How many families the page draws and how many example attributes an
-// error group carries beside its full membership.
+// How many families the page draws, and how many example attributes an
+// error group names beside its full membership.
 const FAMILIES_SHOWN = 40;
 const ERROR_EXAMPLES = 5;
-// A message longer than this is cut; the trace lines above it are dropped
-// before that, so what is cut is the message's own tail.
+// Messages longer than this are cut, after the trace lines above them are
+// dropped.
 const MESSAGE_MAX_CHARS = 400;
 
 // ---- arguments ----------------------------------------------------------------
@@ -213,9 +210,8 @@ function parseArgs(argv: string[]): Options {
   return options;
 }
 
-// The commit of the jinx that ran, when the tool runs inside the jinx
-// repository: the jj working copy's parent (the working copy itself is the
-// empty change jj keeps open), falling back to git.
+// The commit of the jinx that ran: the parent of jj's working copy, or
+// git's HEAD.
 function detectJinxCommit(): string | null {
   const jj = spawnSync(
     "jj",
@@ -280,8 +276,7 @@ async function readJoined(path: string): Promise<Joined[]> {
   return rows;
 }
 
-// The error messages of a nix-eval-jobs-style output, keyed by the
-// attribute path, for the attributes the joined file wants a message for.
+// The error messages of a .jsonl output for the wanted attribute paths.
 async function readErrors(
   path: string,
   wanted: Set<string>,
@@ -305,13 +300,13 @@ async function readErrors(
 const ERROR_LINE = /^error:\s*/;
 const STORE_HASH = /\/nix\/store\/[0-9a-z]{32}-/g;
 const STORE_HASH_MARK = "/nix/store/…-";
-// A number that starts a token: a version, a count, a line number. A digit
-// inside a word (x86_64, python3, cp314) is part of a name and stays.
+// A number that starts a token (a version, a count, a line number). A
+// digit inside a word (x86_64, python3) is part of a name and stays.
 const LOOSE_NUMBER = /(?<![A-Za-z0-9_])\d+(?:\.\d+)*/g;
 const NUMBER_MARK = "N";
 
-// Nix's message is the last `error:` line of its trace and whatever
-// follows it; jinx's is the message itself. Both come out as one line.
+// Nix's message is the last `error:` line of its trace and what follows
+// it; jinx's is the message itself. Both become one line.
 function messageOf(error: string): string {
   const lines = error.split("\n").map((l) => l.trim());
   let start = 0;
@@ -337,10 +332,9 @@ function normalise(message: string): string {
     .replace(LOOSE_NUMBER, NUMBER_MARK);
 }
 
-// One cause: its message as the first attribute reported it, how many
-// attributes hit it, a few of them by name, and all of them as attribute
-// ids (the base's index in the sorted table times the slot count, plus the
-// system slot) so that the page can find an attribute's message.
+// One cause: its message as first reported, how many attributes hit it, a
+// few by name, and all of them as attribute ids (the base's index in the
+// sorted table times the slot count, plus the system slot).
 type ErrorGroup = {
   message: string;
   count: number;
@@ -428,13 +422,12 @@ function readByName(nixpkgs: string | null): Set<string> {
 
 // ---- the attribute table ------------------------------------------------------
 
-// Every attribute, as sorted bases with one outcome digit per system slot,
-// prefix-encoded against the previous base. The first character of each
-// base line is the base-36 length of the prefix it shares with the line
-// before. A code line is one digit per system slot ("-" for absent), led
-// by "+" when the base is a top-level attribute with a pkgs/by-name entry;
-// a code line that repeats for the following bases is written once as
-// `<code>*<count>`.
+// Every attribute as sorted bases with one outcome digit per system slot.
+// The first character of a base line is the base-36 length of the prefix
+// it shares with the line before. A code line is one digit per system
+// slot ("-" for absent), led by "+" when the base is a top-level attribute
+// with a pkgs/by-name entry; a code line repeated for the following bases
+// is written once as `<code>*<count>`.
 type AttrTable = {
   bases: string;
   codes: string;
@@ -503,8 +496,8 @@ async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const rows = await readJoined(options.joined);
 
-  // The messages the page shows: Nix's for the attributes Nix failed on,
-  // jinx's for the ones only jinx failed on.
+  // Nix's messages for the attributes Nix failed on, jinx's for the ones
+  // only jinx failed on.
   const nixWanted = new Set<string>();
   const jinxWanted = new Set<string>();
   for (const row of rows) {
@@ -613,8 +606,8 @@ async function main(): Promise<void> {
   const json = JSON.stringify(data);
   writeFileSync(join(options.out, file), json);
 
-  // The index: every revision the data directory holds, newest first, with
-  // the headline counts so the page can list them without fetching each.
+  // The index: every revision in the data directory, newest first, with
+  // the headline counts.
   const index = readdirSync(options.out)
     .filter((name) => name.endsWith(".json") && name !== INDEX_FILE)
     .map((name) => {

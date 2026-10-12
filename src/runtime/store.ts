@@ -1,7 +1,7 @@
 // The store as evaluation sees it. Nothing here touches /nix/store:
-// evaluation only computes what a path *would* be, and records what it
-// added so that `jinx instantiate` can materialise the same things with
-// the same paths afterwards (docs/design.md, "The store").
+// evaluation computes store paths and records what it added, so that
+// `jinx instantiate` can write the same paths later (docs/design.md,
+// "The store").
 
 import { type PathFilter, sourceStorePath } from "./nar.ts";
 import { makeTextPath, storePathBaseName } from "./store-path.ts";

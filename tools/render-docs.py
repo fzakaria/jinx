@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """Render docs/*.md into the static HTML the site serves under /docs/.
 
-Adapted from nixpkgs-multiverse's tools/render-docs.py. The same markdown is
-read by GitHub and by this script, so every transform here exists to make one
-source work in both places: heading anchors use GitHub's slug algorithm, and
-`./page.md` links become `./page` on the way out.
+The same markdown is read by GitHub and by this script, so each transform
+makes one source work in both places: heading anchors use GitHub's slug
+algorithm, and `./page.md` links become `./page`.
 
-Two things differ from the multiverse. The page order comes from the
-README's documentation line rather than a docs/index.md, and the index page
-is synthesised from it: one entry per page, its title and first paragraph.
-And the header and footer are lifted out of site/index.html, so a docs page
-and the playground carry the same chrome by construction.
+The page order comes from the README's documentation line, and the index
+page is built from it: one entry per page, its title and first paragraph.
+The header and footer are lifted out of site/index.html, so a docs page
+and the playground share the same chrome.
 
 Usage: render-docs.py <cmark-gfm> <repo-root> <out-dir> [origin] [store-path]
 """
@@ -27,9 +25,8 @@ from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
 from pygments.util import ClassNotFound
 
-# The extensions GitHub itself renders with. `tagfilter` is deliberately left
-# off: it strips raw <script>/<style> as a defence against untrusted markdown,
-# and everything here is ours.
+# The extensions GitHub renders with. `tagfilter` is left off: it strips raw
+# <script>/<style> from untrusted markdown, and this markdown is ours.
 EXTENSIONS = ["table", "strikethrough", "autolink", "tasklist", "footnotes"]
 
 SITE_TITLE = "jinx"
@@ -37,14 +34,14 @@ REPO = "https://github.com/fzakaria/jinx"
 INDEX_PAGE = "index"
 STORE_PLACEHOLDER = "__STORE_PATH__"
 
-# The README's documentation line, which is the order the docs are meant to
-# be read in and the one list that stays readable on GitHub.
+# A docs link in the README's documentation line, which sets the reading
+# order.
 README_DOC_LINK = re.compile(r"\]\(\./docs/([A-Za-z0-9._-]+)\.md[^)]*\)")
 
 
 def slug(text):
-    """GitHub's heading-anchor algorithm: lowercase, drop punctuation, join on
-    hyphens, so a link that resolves on GitHub resolves on the site."""
+    """GitHub's heading-anchor algorithm: lowercase, drop punctuation, join
+    on hyphens."""
     text = text.strip().lower()
     text = re.sub(r"[^\w\s-]", "", text)
     return re.sub(r"\s+", "-", text)
@@ -65,8 +62,7 @@ def render_markdown(cmark, path):
 def add_anchors(body):
     """Give every h2/h3 an id and collect the h2s for the sidebar.
 
-    Duplicate slugs get a numeric suffix, matching how GitHub disambiguates
-    two headings with the same text in one document.
+    Duplicate slugs get a numeric suffix, as on GitHub.
     """
     seen = {}
     toc = []
@@ -79,16 +75,15 @@ def add_anchors(body):
         anchor = base if n == 0 else f"{base}-{n}"
         if level == "2":
             toc.append((anchor, strip_tags(inner)))
-        # The heading links to itself, so a reader can copy a deep link
-        # without reading the source.
+        # The heading links to itself, so a reader can copy a deep link.
         return f'<h{level} id="{anchor}">' f'<a class="anchor" href="#{anchor}">{inner}</a></h{level}>'
 
     body = re.sub(r"<h([23])>(.*?)</h\1>", replace, body, flags=re.S)
     return body, toc
 
 
-# `nowrap` because the <pre><code> around the block is already there and
-# already styled; Pygments only supplies the spans inside it.
+# `nowrap`: the <pre><code> around the block is already there; Pygments
+# supplies only the spans inside it.
 FORMATTER = HtmlFormatter(nowrap=True)
 
 # cmark-gfm renders a fenced block with an info string as
@@ -96,18 +91,18 @@ FORMATTER = HtmlFormatter(nowrap=True)
 # closing tag is unambiguous.
 CODE_BLOCK = re.compile(r'<pre><code class="language-([^"]+)">(.*?)</code></pre>', re.S)
 
-# The prompts these docs use, and what follows each one. Pygments' own
-# `console` lexer reads a `#` comment line as a root prompt, and knows
-# nothing of `nix-repl>`, so the session is split by hand.
+# The prompts these docs use, and the language of what follows each one.
+# Pygments' `console` lexer reads a `#` comment line as a root prompt and
+# does not know `nix-repl>`, so sessions are split by hand.
 CONSOLE_PROMPTS = [
     (re.compile(r"^(\s*\$ )(.*)$"), "bash"),
     (re.compile(r"^(\s*nix-repl> )(.*)$"), "nix"),
 ]
 CONSOLE_COMMENT = re.compile(r"^\s*#")
 
-# Languages whose lexer paints shell builtins, and where that is misleading
-# here: most commands are `nix <subcommand>` or `jinx <subcommand>`, and a
-# subcommand that shares a name with a bash builtin (`eval`) is not one.
+# Languages whose lexer paints shell builtins. A `jinx eval` subcommand
+# that shares a name with a bash builtin is not one, so the colour comes
+# off.
 SHELL_LANGS = {"console", "sh", "bash", "shell"}
 BUILTIN_SPAN = re.compile(r'<span class="nb">(.*?)</span>', re.S)
 
@@ -118,8 +113,8 @@ def drop_builtins(marked):
 
 
 def highlight_console(code):
-    """Highlight a shell session line by line: only the command parts go
-    through a lexer; prompts, comments and output are marked as such."""
+    """Highlight a shell session line by line: commands go through a
+    lexer; prompts, comments and output are marked as such."""
     out = []
     continuation = None
     continuation_is_shell = False
@@ -159,8 +154,8 @@ def highlight_console(code):
 
 
 def highlight_code(body):
-    """Colour fenced blocks at build time, which keeps the docs pages free of
-    runtime JavaScript and of a CDN dependency."""
+    """Colour fenced blocks at build time, so the docs pages need no
+    JavaScript."""
 
     def replace(match):
         lang, escaped = match.group(1), match.group(2)
@@ -173,8 +168,7 @@ def highlight_code(body):
         try:
             lexer = get_lexer_by_name(lang)
         except ClassNotFound:
-            # An unknown info string is not worth failing a build over; the
-            # block still renders, just without colour.
+            # An unknown info string renders without colour.
             return match.group(0)
         marked = highlight(code, lexer, FORMATTER)
         if lang in SHELL_LANGS:
@@ -185,11 +179,11 @@ def highlight_code(body):
 
 
 def rewrite_links(body):
-    """Point the markdown's own links at their rendered equivalents.
+    """Point the markdown's links at their rendered equivalents.
 
-    A `./design.md` link drops its extension, because the published URL is
-    `/docs/design`. A link to anything else in the repository (the README,
-    a source file) has no rendered counterpart, so it goes to GitHub.
+    A `./design.md` link drops its extension, since the published URL is
+    `/docs/design`. A link to anything else in the repository goes to
+    GitHub.
     """
 
     def replace(match):
@@ -215,7 +209,7 @@ def rewrite_links(body):
 
 def page_order(root):
     """The sidebar order: the docs links in the README, first occurrence
-    wins, so the README's documentation line is the one source of truth."""
+    wins."""
     with open(os.path.join(root, "README.md")) as fh:
         text = fh.read()
     order, seen = [], set()
@@ -232,7 +226,7 @@ def title_of(body, fallback):
 
 
 def first_paragraph(body):
-    """The page's opening paragraph, for the index's one-line description."""
+    """The page's opening paragraph, for the index."""
     match = re.search(r"<p>(.*?)</p>", body, flags=re.S)
     return match.group(1).strip() if match else ""
 
@@ -241,9 +235,9 @@ def index_body(pages):
     """The docs index: one entry per page, in reading order."""
     out = [
         "<h1>Documentation</h1>",
-        "<p>jinx reads the Nix language and writes TypeScript that evaluates to the same thing. "
-        "These pages are the design and the evidence, in the order they are meant to be read. "
-        f'The same files are in the repository under <a href="{REPO}/tree/main/docs">docs/</a>.</p>',
+        "<p>jinx reads Nix and writes TypeScript that evaluates to the same thing. "
+        "These pages are the design and the evidence, in reading order. "
+        f'The source is in the repository under <a href="{REPO}/tree/main/docs">docs/</a>.</p>',
         '<dl class="doc-index">',
     ]
     for name, title, body in pages:
@@ -273,9 +267,10 @@ def sidebar(pages, current):
 def site_chrome(root):
     """The header and footer of site/index.html, re-rooted for /docs/.
 
-    The playground's `.` becomes `../`, its `docs/` becomes `./`, the active
-    nav link moves to Documentation, and the hidden store line is replaced
-    by one the site derivation stamps, since a docs page runs no JavaScript.
+    The playground's `.` becomes `../`, its `docs/` becomes `./`, the
+    active nav link moves to Documentation, and the hidden store line is
+    replaced by one the site derivation stamps, since a docs page runs no
+    JavaScript.
     """
     with open(os.path.join(root, "site", "index.html")) as fh:
         page = fh.read()
@@ -302,9 +297,8 @@ def provenance(store_path):
 
 
 def url_of(name):
-    """A page's URL path, without the `.html` a reader would have to type:
-    GitHub Pages and `nix run .#serve` both resolve the extensionless
-    request onto the file."""
+    """A page's URL path without `.html`; GitHub Pages and `nix run
+    .#serve` both resolve the extensionless request onto the file."""
     return "/docs/" if name == INDEX_PAGE else f"/docs/{name}"
 
 
@@ -315,8 +309,7 @@ def canonical(origin, name):
 
 
 def shell(title, body, nav, name, header, footer, store_path, origin):
-    """The page frame: the site's own header and footer, so /docs/ reads as
-    part of jinx.dev rather than as a separate manual."""
+    """The page frame, with the site's own header and footer."""
     edit = "" if name == INDEX_PAGE else f'\n        <p class="doc-edit"><a href="{REPO}/blob/main/docs/{name}.md">Edit this page on GitHub</a></p>'
     footer = footer.replace("</footer>", f"{provenance(store_path)}\n    </footer>")
     return f"""<!doctype html>
@@ -349,9 +342,8 @@ def shell(title, body, nav, name, header, footer, store_path, origin):
 
 def main():
     cmark, root, out_dir = sys.argv[1:4]
-    # Rendering outside the site derivation (a local preview) knows neither
-    # of these. An empty origin keeps the canonical link off the page; the
-    # store-path placeholder is substituted by the site derivation.
+    # A local preview knows neither of these. An empty origin leaves the
+    # canonical link off; the site derivation substitutes the store path.
     origin = sys.argv[4] if len(sys.argv) > 4 else ""
     store_path = sys.argv[5] if len(sys.argv) > 5 else STORE_PLACEHOLDER
     docs_dir = os.path.join(root, "docs")
@@ -359,8 +351,7 @@ def main():
 
     names = page_order(root)
 
-    # Render every page first: the sidebar needs each page's title, and the
-    # active page's h2 list, before any page can be written.
+    # Render every page first: the sidebar needs every title.
     rendered = {}
     for name in names:
         source = os.path.join(docs_dir, f"{name}.md")
@@ -371,8 +362,7 @@ def main():
         body = highlight_code(body)
         rendered[name] = (body, toc, title_of(body, name))
 
-    # A page on disk the README never links would silently never be
-    # published; that is a mistake worth failing the build over.
+    # A page the README never links would never be published.
     on_disk = {f[:-3] for f in os.listdir(docs_dir) if f.endswith(".md")}
     missing = on_disk - set(names)
     if missing:
@@ -390,8 +380,7 @@ def main():
         with open(os.path.join(out_dir, f"{name}.html"), "w") as fh:
             fh.write(page)
 
-    # Anything beside the markdown (a diagram linked as `./name.svg`) goes
-    # across untouched, under the same name GitHub serves it by.
+    # Anything beside the markdown (a diagram) is copied as is.
     assets = [f for f in sorted(os.listdir(docs_dir)) if not f.endswith(".md")]
     for asset in assets:
         shutil.copyfile(os.path.join(docs_dir, asset), os.path.join(out_dir, asset))

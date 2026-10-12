@@ -1,8 +1,8 @@
 // The Nix parser: recursive descent over the lexer's tokens, after the
-// grammar in parser.y. The precedence table below is Nix's, lowest first;
-// everything else is the usual shape, with two Nix-specific jobs on top:
-// merging attribute paths (`a.b = 1; a.c = 2;` is one nested set) and
-// stripping the common indentation of `''` strings.
+// grammar in parser.y. The precedence table below is Nix's, lowest first.
+// Two jobs beyond the grammar: merging attribute paths (`a.b = 1; a.c =
+// 2;` is one nested set) and stripping the common indentation of `''`
+// strings.
 
 import type {
   AttrName,

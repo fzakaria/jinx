@@ -1,14 +1,14 @@
 #!/bin/sh
-# The nix-conformance adapter as an executable the suite's runner can call:
+# The nix-conformance adapter, as the executable the suite's runner calls:
 #   ADAPTER OP FILE [FLAG...]
-# JINX_MAIN names another src/cli/main.ts to run; JINX_CACHE names the
-# directory compiled files go to. The runner sets HOME to a directory that
-# does not exist, so the cache defaults to a real one instead of ~/.cache.
-# JINX_ADAPTER_TIMEOUT bounds one case in seconds: an evaluation that never
-# ends (eval-fail-functor-loop) would otherwise stop the whole run.
+# JINX_MAIN names another src/cli/main.ts to run. JINX_CACHE is the
+# directory compiled files go to; the runner sets HOME to a directory that
+# does not exist, so the default is not under ~/.cache. JINX_ADAPTER_TIMEOUT
+# bounds one case in seconds, since an evaluation that never ends
+# (eval-fail-functor-loop) would stop the whole run.
 #
 # The `--` keeps main.ts from reading nix-instantiate flags such as --arg
-# as its own; everything after it reaches the adapter as given.
+# as its own.
 set -u
 main=${JINX_MAIN:-"$(dirname "$0")/../src/cli/main.ts"}
 : "${JINX_CACHE:=${XDG_CACHE_HOME:-${TMPDIR:-/tmp}}/jinx/conformance-fs}"

@@ -601,7 +601,8 @@ function emit(node: Node): string {
 // ---------------------------------------------------------------------------
 // Public API
 
-// Nix keeps every compiled regex for the life of the evaluator; so do we.
+// Nix keeps every compiled regex for the life of the evaluator; this cache
+// does the same.
 const cache = new Map<string, CompiledRegex>();
 
 // Compile an ERE pattern, reusing an earlier compilation of the same text.

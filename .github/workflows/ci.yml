@@ -1,20 +1,17 @@
-# Formatting first, then `nix flake check`, which runs everything the flake
-# defines, all of it offline:
+# Formatting, then `nix flake check`, all offline:
 #
 #   checks.build        the compiler type-checks and installs
-#   checks.unit         the node:test suites (parser, emitter, every
-#                       byte-exact runtime module) against recorded cases
+#   checks.prose        tools/check-prose.py over the tree
+#   checks.unit         the node:test suites against recorded cases
 #   checks.corpus       tests/corpus/*.nix against the recorded nix output
 #   checks.conformance  nix-conformance through the adapter, against the
 #                       floor in tests/conformance/expected.json
 #
-# Then the one thing recording cannot stand in for: the live differential
-# against the nix on the runner (JINX_NIX_DIFF=1), which asks the real
-# nix-instantiate the same questions the recordings answer. Recordings
-# drift when nix changes; this step says when.
+# Then the live differential against the nix on the runner
+# (JINX_NIX_DIFF=1), which catches recordings drifting when nix changes.
 #
-# The whole-nixpkgs parity run is not here: it needs hours of cores and
-# runs on its own machine (docs/verification.md, tools/parity.sh).
+# The whole-nixpkgs parity run needs hours of cores and runs on its own
+# machine (docs/verification.md, tools/parity.sh).
 name: ci
 
 on:

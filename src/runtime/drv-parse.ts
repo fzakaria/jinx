@@ -8,9 +8,9 @@
 // is not UTF-8 round-trips byte for byte and sorting by code unit is
 // sorting by byte, as Nix's std::map does.
 //
-// This is a superset of derivation.ts's Derivation: floating and impure
-// outputs, the text and git ingestion methods and dynamic inputs are not
-// produced by evaluation, but a `.drv` on disk may hold them.
+// A superset of derivation.ts's Derivation: evaluation never produces
+// floating or impure outputs, the text and git ingestion methods or
+// dynamic inputs, but a `.drv` on disk may hold them.
 
 import {
   type HashAlgo,

@@ -1,8 +1,7 @@
-# @types/node, pinned by hash straight from the registry, so tsc can check the
-# code's use of fs/crypto/worker_threads without an npm install or a lockfile.
-# This is the one npm artifact the repository touches, and it is types only:
-# nothing from it runs. Bump the two versions and hashes together;
-# @types/node declares the undici-types range it was written against.
+# @types/node, pinned by hash from the registry, so tsc can check the
+# code's use of node's modules without an npm install or a lockfile. Types
+# only; nothing from it runs. Bump the two versions and hashes together,
+# since @types/node declares the undici-types range it needs.
 { pkgs }:
 let
   fetchTgz =

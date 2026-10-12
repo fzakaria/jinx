@@ -46,9 +46,7 @@ const OUT_PATH_ATTR = "outPath";
 // The hooks are injected so this module does not depend on the store or
 // on function application.
 export interface JsonHooks {
-  // Apply `__toString` of an attrset: given the attrset, return the Str
-  // result (the caller knows how to call Nix functions and coerce the
-  // result to a string).
+  // Apply `__toString` of an attrset and coerce the result to a string.
   applyToString: (attrs: Attrs) => Str;
   // Copy a source path to the store and return its store path string
   // (with its context element).
@@ -309,7 +307,7 @@ class JsonParser {
   }
 
   // Build an error carrying the 1-based line and column of the cursor,
-  // in the spirit of nlohmann's "parse error at line L, column C".
+  // like nlohmann's "parse error at line L, column C".
   error(reason: string): NixError {
     const consumed = this.text.slice(0, this.pos);
     const line = consumed.split("\n").length;

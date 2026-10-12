@@ -1,7 +1,5 @@
 // The benchmark page: draws bench/history.json, one record per run of
-// tools/bench.ts, as small multiples over time. The tool writes the file;
-// this only reads it. Plain SVG, no library: three lines over a handful of
-// points does not need one.
+// tools/bench.ts, as small multiples over time. Plain SVG, no library.
 
 const HISTORY_URL = "history.json";
 const REPO_URL = "https://github.com/fzakaria/jinx/";
@@ -26,10 +24,9 @@ const PROBE_ORDER = ["lib", "hello", "firefox", "nixos", "sample"];
 
 const PANEL_WIDTH = 320;
 const PANEL_HEIGHT = 210;
-// The top band holds the title and subtitle; the bottom band the x ticks,
-// a date over a commit; the right band the direct labels at the lines'
-// ends ("jinx warm"); the left band the y tick labels, as wide as the
-// widest ("1000").
+// Bands around the plot: the title and subtitle at the top, the x ticks
+// (a date over a commit) at the bottom, the series labels at the lines'
+// ends on the right, the y tick labels on the left.
 const MARGIN = { top: 34, right: 66, bottom: 42, left: 38 };
 const TICK_LABEL_GAP = 6;
 const TITLE_Y = 12;
@@ -43,10 +40,10 @@ const END_LABEL_INSET = 4;
 // An x tick is two lines, the date and the commit, under the axis.
 const DATE_TICK_Y = 13;
 const COMMIT_TICK_Y = 24;
-// Two ticks closer than this (about a tick's width) would overprint, so
-// the one between the ends is dropped.
+// Two ticks closer than this would overprint; the one between the ends is
+// dropped.
 const MIN_TICK_GAP = 96;
-// How much of an error the table shows; the cell's title has it all.
+// How much of an error the table shows; the cell's title holds it all.
 const ERROR_MAX_CHARS = 48;
 // The subtitle is one line under the title, clipped rather than wrapped.
 const SUBTITLE_MAX_CHARS = 46;
@@ -188,8 +185,7 @@ function panel(title, subtitle, records, probe, measure, tooltipHost) {
     values: records.map((r) => value(r, probe, s.key, measure.key)),
   }));
 
-  // x is time, so two runs a day apart sit close and a month apart sit
-  // far; a single record sits in the middle.
+  // x is time; a single record sits in the middle.
   const times = records.map((r) => Date.parse(r.date));
   const first = Math.min(...times);
   const last = Math.max(...times);
@@ -514,8 +510,7 @@ function drawLatest(records, probes) {
   );
 }
 
-// Every record, newest first, so every plotted value is readable without
-// hovering.
+// Every record as a table, newest first.
 function drawRecords(records, probes) {
   const head = html("tr", {}, [
     html("th", {}, ["date"]),

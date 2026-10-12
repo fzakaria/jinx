@@ -1,10 +1,10 @@
-/* Documentation pages. Loaded only under /docs/ — the playground never pays
+/* Documentation pages. Loaded only under /docs/; the playground never pays
  * for it. Copied from nixpkgs-multiverse's site/docs.css: every colour is a
  * token from style.css, so the prose picks up light/dark and the site's one
  * accent without redefining either. */
 
 /* The docs are prose, so they get a narrower measure than the playground's
-   three panes — but the sidebar sits outside it. */
+   three panes, but the sidebar sits outside it. */
 body {
   max-width: 74rem;
 }
@@ -208,7 +208,7 @@ body {
 .highlight .nt {
   color: var(--syn-literal);
 }
-/* Plain names, and — the one that matters for these docs — the attribute
+/* Plain names, and the one that matters for these docs, the attribute
    names on the left of `=` in a Nix block, which the Nix lexer emits as
    String.Symbol. They are the structure of the expression, not values in it,
    so they stay foreground rather than taking the string colour. */

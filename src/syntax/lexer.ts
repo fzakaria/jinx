@@ -1,14 +1,12 @@
-// The Nix lexer, hand-written after lexer.l in Nix itself: the same token
-// classes, the same longest-match decisions, including the ones that
-// surprise people (`x:y` is a URI, `a-b` is one identifier, `<b>` is a
-// search path).
+// The Nix lexer, hand-written after Nix's lexer.l: the same token classes
+// and the same longest-match decisions (`x:y` is a URI, `a-b` is one
+// identifier, `<b>` is a search path).
 //
 // Strings and paths are not tokenised here. They contain expressions, so
 // the parser drives them: it consumes the opening quote as a token and then
 // asks the lexer to scan literal text up to the next `${` or closing
-// delimiter, parses the expression itself, and asks again. That is why the
-// lexer keeps no lookahead beyond one token and the parser never peeks past
-// a `}`.
+// delimiter, parses the expression itself, and asks again. So the lexer
+// keeps one token of lookahead and the parser never peeks past a `}`.
 
 import type { Pos } from "./ast.ts";
 

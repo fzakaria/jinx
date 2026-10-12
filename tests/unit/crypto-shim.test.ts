@@ -22,7 +22,7 @@ const ONE_MIB = 1024 * 1024;
 const RANDOM_INPUT_BYTES = ONE_MIB;
 const BENCHMARK_BYTES = 16 * ONE_MIB;
 const STREAM_CHUNK_SIZES: readonly number[] = [1, 3, 64, 1000];
-const MULTIBYTE_STRING = "héllo wörld — ☃ 日本語 🎉";
+const MULTIBYTE_STRING = "héllo wörld · ☃ 日本語 🎉";
 
 // Numerical Recipes LCG so the pseudo-random input is the same every run.
 const LCG_MULTIPLIER = 1664525;
