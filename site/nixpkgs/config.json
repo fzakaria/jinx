@@ -1,8 +1,8 @@
 {
-  "treeUrl": "https://raw.githubusercontent.com/fzakaria/jinx-nixpkgs/119ad4fb6b88b301972d06181495e6dff8f35f54",
-  "treeIndexUrl": "https://raw.githubusercontent.com/fzakaria/jinx-nixpkgs/119ad4fb6b88b301972d06181495e6dff8f35f54/.jinx/tree-index.json",
+  "treeUrl": "https://raw.githubusercontent.com/fzakaria/jinx-nixpkgs/57b558a40b03237cc6ad59f1fe6796a81317c5b6",
+  "treeIndexUrl": "https://raw.githubusercontent.com/fzakaria/jinx-nixpkgs/57b558a40b03237cc6ad59f1fe6796a81317c5b6/.jinx/tree-index.json",
   "srcUrl": "https://raw.githubusercontent.com/NixOS/nixpkgs/6510408d147d8c5e6d76043e899e9251756f6a75",
-  "srcIndexUrl": "https://raw.githubusercontent.com/fzakaria/jinx-nixpkgs/119ad4fb6b88b301972d06181495e6dff8f35f54/.jinx/src-index.json",
+  "srcIndexUrl": "https://raw.githubusercontent.com/fzakaria/jinx-nixpkgs/57b558a40b03237cc6ad59f1fe6796a81317c5b6/.jinx/src-index.json",
   "rev": "6510408d147d8c5e6d76043e899e9251756f6a75",
   "system": "x86_64-linux"
 }
