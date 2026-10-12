@@ -62,4 +62,3 @@ export function loadNixpkgs<T = View>(dir: string, opts: LoadOptions = {}): T {
     args: { system, config: {}, overlays: [], ...opts.args },
   });
 }
-

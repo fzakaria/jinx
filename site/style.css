@@ -77,7 +77,8 @@ nav.site {
   margin: 0;
   border: 0;
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
   font-size: 14px;
 }
 nav.site a {
@@ -195,25 +196,24 @@ code {
 .editor.read-only {
   background: var(--code-bg);
 }
-/* CodeMirror fills its box and scrolls inside it. */
-.editor .cm-editor {
+/* Monaco fills its box; a focused editor gets the family's outline. */
+.editor .monaco-editor {
   height: 100%;
-  font-size: 13px;
 }
-.editor .cm-editor.cm-focused {
+.editor:focus-within {
   outline: 1px solid var(--accent);
 }
-.editor .cm-scroller {
-  font-family: ui-monospace, monospace;
-  line-height: 1.5;
+/* The range in one pane that the cursor in the other pane maps to. */
+.editor .mapped {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 2px;
 }
-.editor .cm-gutters {
-  background: var(--code-bg);
-  color: var(--muted);
-  border-right: 1px solid var(--line);
+.editor.disabled {
+  opacity: 0.5;
 }
-.editor.read-only .cm-content {
-  color: var(--fg);
+.pane-note {
+  margin: 0 0 0.4rem;
+  font-size: 13px;
 }
 /* The textarea fallback, when the CDN is out of reach. */
 .fallback-editor {
@@ -233,25 +233,7 @@ code {
   white-space: pre;
 }
 
-/* The result pane: tabs over the value, the JSON and the derivations. */
-#result-tabs {
-  margin: 0 0 0.5rem;
-  border-bottom: 1px solid var(--line);
-}
-#result-tabs a {
-  display: inline-block;
-  border-bottom: 2px solid transparent;
-  padding: 0.3rem 0.7rem;
-  font: inherit;
-  font-size: 14px;
-  color: var(--muted);
-  text-decoration: none;
-  cursor: pointer;
-}
-#result-tabs a.active {
-  color: var(--fg);
-  border-bottom-color: var(--accent);
-}
+/* The result pane: the value, then the derivations. */
 #result {
   height: 27rem;
   overflow: auto;
@@ -271,8 +253,9 @@ code {
 #result pre.error {
   color: var(--error);
 }
-#result pre.panel {
-  min-height: 100%;
+#result h3 {
+  margin: 0.8rem 0 0.4rem;
+  font-size: 1rem;
 }
 
 /* A derivation: its name, its drvPath, the outputs, and the ATerm folded. */
@@ -316,6 +299,12 @@ code {
 }
 .drv .aterm {
   margin-top: 0.3rem;
+  font-size: 12px;
+  white-space: pre;
+  overflow-x: auto;
+}
+.drv summary .toggle {
+  margin-left: 0.6rem;
 }
 
 /* builtins.trace and evaluation warnings, shown only once there are any. */
@@ -334,7 +323,7 @@ footer {
   font-size: 13px;
   text-align: center;
 }
-/* The second footer line: a store path is a single 68-character token —
+/* The second footer line: a store path is a single 68-character token,
    broken across lines it is unreadable and awkward to select. Hold it on
    one line and let the font shrink instead. */
 #store {

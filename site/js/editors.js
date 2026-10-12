@@ -1,289 +1,306 @@
-// The two editors. CodeMirror 6 comes from a CDN through the import map
-// in index.html; when that import fails (offline, CDN down) the same
-// surface is a plain textarea, so the page still works, just without
-// highlighting. Both editors answer to the same four methods.
+// The two editors, on Monaco. The AMD loader comes from cdnjs, pinned;
+// when it cannot be fetched the same surface is a plain textarea, so the
+// page still works, without highlighting or completions. Both editors
+// answer to the same methods, listed at createEditor.
 
-const NIX_KEYWORDS = new Set([
-  "if",
-  "then",
-  "else",
-  "let",
-  "in",
-  "rec",
-  "with",
-  "inherit",
-  "assert",
-  "or",
-]);
-const NIX_CONSTANTS = new Set(["true", "false", "null"]);
+const MONACO_VERSION = "0.52.2";
+const MONACO_BASE = `https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/${MONACO_VERSION}/min`;
+const MONACO_LOADER = `${MONACO_BASE}/vs/loader.min.js`;
 
-// A token-at-a-time Nix highlighter for CodeMirror's StreamLanguage:
-// comments, both string forms with their interpolation, numbers, paths,
-// keywords and the common operators. Interpolation inside a string is
-// handed to a nested state so `${` and `}` nest correctly.
-function nixStreamParser() {
-  const CONTEXT_STRING = "string";
-  const CONTEXT_INDENTED = "indented";
-  const CONTEXT_INTERPOLATION = "interpolation";
-
-  function tokenString(stream, state) {
-    while (!stream.eol()) {
-      if (stream.match("\\")) {
-        stream.next();
-        continue;
-      }
-      if (stream.match("${")) {
-        state.stack.push(CONTEXT_INTERPOLATION);
-        return "string";
-      }
-      if (stream.match('"')) {
-        state.stack.pop();
-        return "string";
-      }
-      stream.next();
-    }
-    return "string";
-  }
-
-  function tokenIndented(stream, state) {
-    while (!stream.eol()) {
-      if (stream.match("'''") || stream.match("''\\") || stream.match("''$")) {
-        continue;
-      }
-      if (stream.match("${")) {
-        state.stack.push(CONTEXT_INTERPOLATION);
-        return "string";
-      }
-      if (stream.match("''")) {
-        state.stack.pop();
-        return "string";
-      }
-      stream.next();
-    }
-    return "string";
-  }
-
-  function tokenCode(stream, state) {
-    if (stream.match("#")) {
-      stream.skipToEnd();
-      return "comment";
-    }
-    if (stream.match("/*")) {
-      state.blockComment = true;
-      return tokenBlockComment(stream, state);
-    }
-    if (stream.match('"')) {
-      state.stack.push(CONTEXT_STRING);
-      return "string";
-    }
-    if (stream.match("''")) {
-      state.stack.push(CONTEXT_INDENTED);
-      return "string";
-    }
-    if (stream.match("${")) {
-      state.stack.push(CONTEXT_INTERPOLATION);
-      return "bracket";
-    }
-    if (stream.match("}")) {
-      const top = state.stack[state.stack.length - 1];
-      if (top === CONTEXT_INTERPOLATION) {
-        state.stack.pop();
-        const outer = state.stack[state.stack.length - 1];
-        return outer === CONTEXT_STRING || outer === CONTEXT_INDENTED
-          ? "string"
-          : "bracket";
-      }
-      return "bracket";
-    }
-    if (stream.match(/^<[a-zA-Z0-9._+\-/]+>/)) {
-      return "string.special";
-    }
-    if (stream.match(/^(\.\.?|~)?\/[a-zA-Z0-9._+\-/]*[a-zA-Z0-9._+\-]/)) {
-      return "string.special";
-    }
-    if (stream.match(/^[0-9]+(\.[0-9]*)?([eE][+-]?[0-9]+)?/)) {
-      return "number";
-    }
-    if (stream.match(/^[a-zA-Z_][a-zA-Z0-9_'-]*/)) {
-      const word = stream.current();
-      if (NIX_KEYWORDS.has(word)) {
-        return "keyword";
-      }
-      if (NIX_CONSTANTS.has(word)) {
-        return "atom";
-      }
-      if (word === "builtins" || word === "derivation" || word === "import") {
-        return "builtin";
-      }
-      return "variableName";
-    }
-    if (stream.match(/^(\+\+|\/\/|->|==|!=|<=|>=|&&|\|\||[-+*\/<>!?=:;,@])/)) {
-      return "operator";
-    }
-    if (stream.match(/^[(){}\[\]]/)) {
-      return "bracket";
-    }
-    stream.next();
-    return null;
-  }
-
-  function tokenBlockComment(stream, state) {
-    while (!stream.eol()) {
-      if (stream.match("*/")) {
-        state.blockComment = false;
-        return "comment";
-      }
-      stream.next();
-    }
-    return "comment";
-  }
-
-  return {
-    name: "nix",
-    startState() {
-      return { stack: [], blockComment: false };
-    },
-    token(stream, state) {
-      if (state.blockComment) {
-        return tokenBlockComment(stream, state);
-      }
-      if (stream.eatSpace()) {
-        return null;
-      }
-      const top = state.stack[state.stack.length - 1];
-      if (top === CONTEXT_STRING) {
-        return tokenString(stream, state);
-      }
-      if (top === CONTEXT_INDENTED) {
-        return tokenIndented(stream, state);
-      }
-      return tokenCode(stream, state);
-    },
-    languageData: {
-      commentTokens: { line: "#", block: { open: "/*", close: "*/" } },
-    },
-  };
-}
+// Where the runtime's declarations are served from, and where they sit
+// in Monaco's virtual filesystem so `import ... from "jinx"` and
+// "jinx/runtime" resolve by node's rules.
+const DTS_URL = "js/jinx-dts.json";
+const DTS_ROOT = "file:///node_modules/jinx/";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
+const THEME_LIGHT = "vs";
+const THEME_DARK = "vs-dark";
 
-// The CodeMirror modules, loaded once and shared by both editors. A
-// rejected import is remembered so the second editor does not wait on
-// the CDN a second time.
-let codemirrorModules = null;
-async function loadCodemirror() {
-  if (codemirrorModules === null) {
-    codemirrorModules = Promise.all([
-      import("codemirror"),
-      import("@codemirror/state"),
-      import("@codemirror/view"),
-      import("@codemirror/language"),
-      import("@codemirror/lang-javascript"),
-      import("@lezer/highlight"),
-    ]).then(([cm, state, view, language, js, highlight]) => ({
-      ...cm,
-      ...state,
-      ...view,
-      ...language,
-      ...js,
-      tags: highlight.tags,
-    }));
+// A Monarch tokenizer for Nix: keywords, both string forms with their
+// ${} interpolation, comments, paths, numbers and operators.
+const NIX_LANGUAGE = {
+  defaultToken: "",
+  keywords: [
+    "if",
+    "then",
+    "else",
+    "let",
+    "in",
+    "rec",
+    "with",
+    "inherit",
+    "assert",
+    "or",
+  ],
+  constants: ["true", "false", "null"],
+  builtins: [
+    "builtins",
+    "derivation",
+    "import",
+    "throw",
+    "abort",
+    "map",
+    "toString",
+  ],
+  operators: [
+    "++",
+    "//",
+    "->",
+    "==",
+    "!=",
+    "<=",
+    ">=",
+    "&&",
+    "||",
+    "?",
+    "!",
+    "+",
+    "-",
+    "*",
+    "/",
+    "<",
+    ">",
+    "=",
+  ],
+  tokenizer: {
+    root: [
+      [/#.*$/, "comment"],
+      [/\/\*/, "comment", "@blockComment"],
+      [/''/, "string", "@indented"],
+      [/"/, "string", "@string"],
+      [/<[a-zA-Z0-9._+\-/]+>/, "string.special"],
+      [/(\.\.?|~)?\/[a-zA-Z0-9._+\-/]*[a-zA-Z0-9._+\-]/, "string.special"],
+      [/[0-9]+(\.[0-9]*)?([eE][+-]?[0-9]+)?/, "number"],
+      [
+        /[a-zA-Z_][a-zA-Z0-9_'-]*/,
+        {
+          cases: {
+            "@keywords": "keyword",
+            "@constants": "constant",
+            "@builtins": "type",
+            "@default": "identifier",
+          },
+        },
+      ],
+      [/\$\{/, "delimiter.bracket", "@interpolation"],
+      [/[{}()[\]]/, "delimiter.bracket"],
+      [/(\+\+|\/\/|->|==|!=|<=|>=|&&|\|\||[-+*/<>!?=:;,@.])/, "operator"],
+      [/\s+/, "white"],
+    ],
+    blockComment: [
+      [/[^*/]+/, "comment"],
+      [/\*\//, "comment", "@pop"],
+      [/[*/]/, "comment"],
+    ],
+    string: [
+      [/[^\\"$]+/, "string"],
+      [/\\./, "string.escape"],
+      [/\$\{/, "delimiter.bracket", "@interpolation"],
+      [/\$/, "string"],
+      [/"/, "string", "@pop"],
+    ],
+    indented: [
+      [/'''|''\\.|''\$/, "string.escape"],
+      [/''/, "string", "@pop"],
+      [/\$\{/, "delimiter.bracket", "@interpolation"],
+      [/[^'$]+/, "string"],
+      [/['$]/, "string"],
+    ],
+    // Nested braces inside ${ } are code; the matching } ends it.
+    interpolation: [
+      [/\}/, "delimiter.bracket", "@pop"],
+      [/\{/, "delimiter.bracket", "@brace"],
+      { include: "root" },
+    ],
+    brace: [
+      [/\}/, "delimiter.bracket", "@pop"],
+      [/\{/, "delimiter.bracket", "@brace"],
+      { include: "root" },
+    ],
+  },
+};
+
+const NIX_CONFIGURATION = {
+  comments: { lineComment: "#", blockComment: ["/*", "*/"] },
+  brackets: [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+  ],
+  autoClosingPairs: [
+    { open: "{", close: "}" },
+    { open: "[", close: "]" },
+    { open: "(", close: ")" },
+    { open: '"', close: '"' },
+  ],
+};
+
+function darkMode() {
+  return window.matchMedia(DARK_QUERY).matches;
+}
+
+// Load the AMD loader, then the editor. Monaco's workers run from the
+// CDN, which a page on another origin may only do through a same-origin
+// blob that imports them.
+let monacoPromise = null;
+function loadMonaco() {
+  if (monacoPromise !== null) {
+    return monacoPromise;
   }
-  return codemirrorModules;
+  monacoPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = MONACO_LOADER;
+    script.onerror = () => reject(new Error(`could not load ${MONACO_LOADER}`));
+    script.onload = () => {
+      window.MonacoEnvironment = {
+        getWorkerUrl() {
+          const bootstrap = `self.MonacoEnvironment = { baseUrl: "${MONACO_BASE}/" };
+importScripts("${MONACO_BASE}/vs/base/worker/workerMain.js");`;
+          return URL.createObjectURL(
+            new Blob([bootstrap], { type: "text/javascript" }),
+          );
+        },
+      };
+      window.require.config({ paths: { vs: `${MONACO_BASE}/vs` } });
+      window.require(
+        ["vs/editor/editor.main"],
+        () => resolve(window.monaco),
+        reject,
+      );
+    };
+    document.head.appendChild(script);
+  }).then((monaco) => {
+    configureMonaco(monaco);
+    return monaco;
+  });
+  return monacoPromise;
 }
 
-// The dark highlight style. The light one is CodeMirror's default, which
-// is close enough to the site's palette to pass as its own.
-function darkHighlight(cm) {
-  return cm.HighlightStyle.define([
-    { tag: cm.tags.keyword, color: "#c678dd" },
-    { tag: cm.tags.atom, color: "#d19a66" },
-    { tag: cm.tags.number, color: "#d19a66" },
-    { tag: cm.tags.string, color: "#98c379" },
-    { tag: cm.tags.special(cm.tags.string), color: "#56b6c2" },
-    { tag: cm.tags.comment, color: "#7f848e", fontStyle: "italic" },
-    { tag: cm.tags.standard(cm.tags.name), color: "#e5c07b" },
-    {
-      tag: [
-        cm.tags.definition(cm.tags.name),
-        cm.tags.function(cm.tags.variableName),
-      ],
-      color: "#61afef",
-    },
-    { tag: cm.tags.propertyName, color: "#e06c75" },
-    { tag: cm.tags.operator, color: "#56b6c2" },
-    { tag: cm.tags.typeName, color: "#e5c07b" },
-  ]);
+// One-time setup: the Nix language, the theme, and TypeScript's compiler
+// options and the runtime's declarations for completions and diagnostics.
+function configureMonaco(monaco) {
+  monaco.languages.register({ id: "nix" });
+  monaco.languages.setMonarchTokensProvider("nix", NIX_LANGUAGE);
+  monaco.languages.setLanguageConfiguration("nix", NIX_CONFIGURATION);
+
+  monaco.editor.setTheme(darkMode() ? THEME_DARK : THEME_LIGHT);
+  window.matchMedia(DARK_QUERY).addEventListener("change", (e) => {
+    monaco.editor.setTheme(e.matches ? THEME_DARK : THEME_LIGHT);
+  });
+
+  const ts = monaco.languages.typescript;
+  ts.typescriptDefaults.setCompilerOptions({
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeJs,
+    allowImportingTsExtensions: true,
+    allowNonTsExtensions: true,
+    strict: true,
+    noEmit: false,
+    lib: ["esnext", "dom"],
+  });
+  ts.typescriptDefaults.setEagerModelSync(true);
+  setValidation(monaco, false);
+  loadDeclarations(monaco).catch((e) => {
+    console.warn("runtime declarations unavailable; completions are off:", e);
+  });
 }
 
-async function createCodemirror(parent, { language, readOnly, onChange }) {
-  const cm = await loadCodemirror();
-  const readOnlyCompartment = new cm.Compartment();
-  const themeCompartment = new cm.Compartment();
-
-  const languageExtension =
-    language === "javascript"
-      ? cm.javascript({ typescript: true })
-      : cm.StreamLanguage.define(nixStreamParser());
-
-  const themeFor = (dark) =>
-    dark
-      ? [
-          cm.EditorView.theme({}, { dark: true }),
-          cm.syntaxHighlighting(darkHighlight(cm)),
-        ]
-      : [];
-
-  const darkQuery = window.matchMedia(DARK_QUERY);
-  const view = new cm.EditorView({
-    parent,
-    state: cm.EditorState.create({
-      doc: "",
-      extensions: [
-        cm.basicSetup,
-        languageExtension,
-        readOnlyCompartment.of(cm.EditorState.readOnly.of(readOnly)),
-        themeCompartment.of(themeFor(darkQuery.matches)),
-        cm.EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            onChange();
-          }
-        }),
-      ],
-    }),
+// Type errors are shown only for code someone is writing: the compiler's
+// output is checked by nothing and is not written to satisfy the
+// runtime's declared types.
+function setValidation(monaco, on) {
+  monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+    noSemanticValidation: !on,
+    noSyntaxValidation: false,
   });
+}
 
-  // Follow the OS theme while the page is open.
-  darkQuery.addEventListener("change", (e) => {
-    view.dispatch({
-      effects: themeCompartment.reconfigure(themeFor(e.matches)),
-    });
+// The declarations are one JSON document of path to text, written by
+// tools/build-site.sh.
+async function loadDeclarations(monaco) {
+  const res = await fetch(DTS_URL);
+  if (!res.ok) {
+    throw new Error(`${DTS_URL}: HTTP ${res.status}`);
+  }
+  const files = await res.json();
+  for (const [path, text] of Object.entries(files)) {
+    monaco.languages.typescript.typescriptDefaults.addExtraLib(
+      text,
+      `${DTS_ROOT}${path}`,
+    );
+  }
+}
+
+const HIGHLIGHT_CLASS = "mapped";
+
+async function createMonaco(parent, { language, readOnly, onChange, uri }) {
+  const monaco = await loadMonaco();
+  const model = monaco.editor.createModel("", language, monaco.Uri.parse(uri));
+  const editor = monaco.editor.create(parent, {
+    model,
+    readOnly,
+    automaticLayout: true,
+    minimap: { enabled: false },
+    fontSize: 13,
+    lineNumbersMinChars: 3,
+    scrollBeyondLastLine: false,
+    renderLineHighlight: "none",
+    fixedOverflowWidgets: true,
+    tabSize: 2,
   });
+  model.onDidChangeContent(() => onChange());
+  parent.classList.toggle("read-only", readOnly);
+  const decorations = editor.createDecorationsCollection([]);
 
   return {
-    kind: "codemirror",
-    getValue: () => view.state.doc.toString(),
+    kind: "monaco",
+    getValue: () => model.getValue(),
     setValue(text) {
-      if (text === view.state.doc.toString()) {
-        return;
+      if (text !== model.getValue()) {
+        model.setValue(text);
       }
-      view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: text },
-      });
     },
     setReadOnly(flag) {
-      view.dispatch({
-        effects: readOnlyCompartment.reconfigure(
-          cm.EditorState.readOnly.of(flag),
-        ),
-      });
+      editor.updateOptions({ readOnly: flag });
       parent.classList.toggle("read-only", flag);
     },
-    focus: () => view.focus(),
+    focus: () => editor.focus(),
+    // The cursor, zero-based, reported on every move.
+    onCursor(fn) {
+      editor.onDidChangeCursorPosition((e) => {
+        fn({ line: e.position.lineNumber - 1, column: e.position.column - 1 });
+      });
+    },
+    // Highlight zero-based [startLine, startColumn, endLine, endColumn] ranges.
+    highlight(ranges) {
+      decorations.set(
+        ranges.map(([l1, c1, l2, c2]) => ({
+          range: new monaco.Range(l1 + 1, c1 + 1, l2 + 1, c2 + 1),
+          options: { inlineClassName: HIGHLIGHT_CLASS },
+        })),
+      );
+    },
+    // The model's JavaScript, with type annotations stripped by
+    // TypeScript's own emitter in Monaco's worker.
+    async toJavaScript() {
+      const worker = await monaco.languages.typescript.getTypeScriptWorker();
+      const client = await worker(model.uri);
+      const out = await client.getEmitOutput(model.uri.toString());
+      const file = out.outputFiles[0];
+      if (file === undefined) {
+        throw new Error("TypeScript produced no output");
+      }
+      return file.text;
+    },
+    lineCount: () => model.getLineCount(),
+    setValidation: (on) => setValidation(monaco, on),
   };
 }
 
-// The fallback: a textarea with the same four methods.
+// The fallback: a textarea with the same methods. No highlighting, no
+// type stripping, so a TypeScript example with annotations will not run.
 function createTextarea(parent, { readOnly, onChange }) {
   const textarea = document.createElement("textarea");
   textarea.className = "fallback-editor";
@@ -305,16 +322,23 @@ function createTextarea(parent, { readOnly, onChange }) {
       parent.classList.toggle("read-only", flag);
     },
     focus: () => textarea.focus(),
+    onCursor() {},
+    highlight() {},
+    toJavaScript: async () => textarea.value,
+    lineCount: () => textarea.value.split("\n").length,
+    setValidation() {},
   };
 }
 
-// `language` is "nix" or "javascript". The returned editor has getValue,
-// setValue, setReadOnly and focus, whichever implementation it is.
+// `language` is "nix" or "typescript"; `uri` names the model, which is
+// what TypeScript resolves imports against. The editor has getValue,
+// setValue, setReadOnly, focus, onCursor, highlight, toJavaScript,
+// lineCount and setValidation, whichever implementation it is.
 export async function createEditor(parent, options) {
   try {
-    return await createCodemirror(parent, options);
+    return await createMonaco(parent, options);
   } catch (e) {
-    console.warn("CodeMirror unavailable, falling back to a textarea:", e);
+    console.warn("Monaco unavailable, falling back to a textarea:", e);
     return createTextarea(parent, options);
   }
 }

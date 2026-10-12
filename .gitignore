@@ -9,5 +9,7 @@ work/
 # Built by nix/site.nix and tools/build-site.sh: the browser bundle and
 # the rendered docs.
 site/js/jinx.js
+site/js/jinx-dts.json
 site/js/nixpkgs-worker.js
 site/docs/
+__pycache__/

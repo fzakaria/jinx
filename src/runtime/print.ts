@@ -80,6 +80,10 @@ export interface PrintOptions {
   // Print derivations as «derivation path», as Nix does, instead of as
   // the attribute sets they are.
   readonly derivationsAsPaths: boolean;
+  // One attribute or list element per line, indented, the way nix repl
+  // prints nested values. Off, the value is one line, which is what
+  // nix-instantiate prints and what the tests compare.
+  readonly pretty?: boolean;
 }
 
 export const STRICT_PRINT: PrintOptions = {
@@ -87,11 +91,23 @@ export const STRICT_PRINT: PrintOptions = {
   derivationsAsPaths: false,
 };
 
+const INDENT = "  ";
+
 export function printValue(v: Lazy, opts: PrintOptions = STRICT_PRINT): string {
   const out: string[] = [];
   const seen = new Set<object>();
-  print(v, opts, out, seen);
+  print(v, opts, out, seen, 0);
   return out.join("");
+}
+
+// The separators of a list or set: one line with spaces, or a newline
+// and the indentation of the depth.
+function open(opts: PrintOptions, depth: number): string {
+  return opts.pretty ? `\n${INDENT.repeat(depth + 1)}` : " ";
+}
+
+function close(opts: PrintOptions, depth: number): string {
+  return opts.pretty ? `\n${INDENT.repeat(depth)}` : " ";
 }
 
 function print(
@@ -99,6 +115,7 @@ function print(
   opts: PrintOptions,
   out: string[],
   seen: Set<object>,
+  depth: number,
 ): void {
   const x = force(v);
   switch (typeOf(x)) {
@@ -134,12 +151,12 @@ function print(
         return;
       }
       seen.add(l);
-      out.push("[ ");
+      out.push("[");
       for (const e of l) {
-        print(e, opts, out, seen);
-        out.push(" ");
+        out.push(open(opts, depth));
+        print(e, opts, out, seen, depth + 1);
       }
-      out.push("]");
+      out.push(close(opts, depth), "]");
       return;
     }
     case "set": {
@@ -166,13 +183,13 @@ function print(
         return;
       }
       seen.add(a);
-      out.push("{ ");
+      out.push("{");
       for (const n of names) {
-        out.push(printAttrName(n), " = ");
-        print(getAttr(a, n) as Lazy, opts, out, seen);
-        out.push("; ");
+        out.push(open(opts, depth), printAttrName(n), " = ");
+        print(getAttr(a, n) as Lazy, opts, out, seen, depth + 1);
+        out.push(";");
       }
-      out.push("}");
+      out.push(close(opts, depth), "}");
       return;
     }
   }
