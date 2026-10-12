@@ -109,7 +109,7 @@ const SAMPLE_ATTRS = [
   "zig",
   "ocaml",
   "erlang",
-  "elixir",
+  "beamPackages.elixir",
   "ruby",
   "php",
   "lua",
