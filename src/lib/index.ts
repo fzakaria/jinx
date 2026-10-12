@@ -219,7 +219,9 @@ export function load(file: string, opts: LoadOptions = {}): View {
   return view(v);
 }
 
-// nixpkgs, with the configuration Hydra uses unless told otherwise.
+// `load` for nixpkgs: the same import, with nixpkgs' arguments (system,
+// config, overlays) filled in the way Hydra fills them unless given.
+// Sugar now; the place a typed view of the package set will attach.
 export function loadNixpkgs(dir: string, opts: LoadOptions = {}): View {
   const system = opts.system ?? settings.currentSystem;
   return load(dir, {

@@ -441,10 +441,9 @@ test("rec and empty sets", () => {
   assert.equal(s("rec { a = b; b = 1; }"), "rec {a=b; b=1;}");
   assert.equal(s("rec { }"), "rec {}");
   assert.equal(s("let in 1"), "(let {} 1)");
-  assert.match(
-    parseError("let { a = 1; }").message,
-    /'let \{ \.\.\. \}' form was removed/,
-  );
+  // The legacy `let { body = ...; }` form, which Nix still accepts, is
+  // `(rec { ... }).body`.
+  assert.equal(s("let { body = a; a = 1; }"), "(rec {a=1; body=a;}).body");
 });
 
 // ---- lists --------------------------------------------------------------------
@@ -510,15 +509,11 @@ test("stripIndentation on parts", () => {
 // Tests that an indented string of nothing but spaces is empty, as in Nix
 // (nix-instantiate --eval -E "''   ''" prints ""): no line has content, so
 // Nix's minimum indentation stays at its sentinel and every space is
-// dropped. jinx resets the minimum to 0 and keeps the spaces.
-test(
-  "indented string of only spaces is empty",
-  { skip: "bug: `''   ''` keeps its spaces; Nix evaluates it to \"\"" },
-  () => {
-    assert.deepEqual(stripIndentation(["   "]), []);
-    assert.equal(s("''   ''"), "(str )");
-  },
-);
+// dropped.
+test("indented string of only spaces is empty", () => {
+  assert.deepEqual(stripIndentation(["   "]), []);
+  assert.equal(s("''   ''"), "(str )");
+});
 
 // Tests the path anchors and interpolation inside a path: `./a/${b}/c` has
 // three parts, `/etc` is absolute, `~/x` is home and `<nixpkgs>` is a

@@ -865,7 +865,10 @@ class Emitter {
     depth: number,
   ): string {
     const oneLine = `${open} ${items.join(", ")} ${close}`;
-    if (oneLine.length <= 80 && !oneLine.includes("\n")) {
+    if (
+      oneLine.replace(ALL_MARKERS, "").length <= 80 &&
+      !oneLine.includes("\n")
+    ) {
       return open === "[" ? `[${items.join(", ")}]` : oneLine;
     }
     const pad = INDENT.repeat(depth + 1);
@@ -884,8 +887,12 @@ class Emitter {
 // An arrow function whose body is an object literal needs parentheses, or
 // the braces read as a block.
 function arrowBody(expr: string): string {
-  return expr.startsWith("{") ? `(${expr})` : expr;
+  return expr.replace(LEADING_MARKER, "").startsWith("{") ? `(${expr})` : expr;
 }
+
+// A position stamp at the start of an emitted expression.
+const LEADING_MARKER = /^\u0001[^\u0002]*\u0002/;
+const ALL_MARKERS = /\u0001[^\u0002]*\u0002/g;
 
 // `nix.builtins.map`, or `nix.builtins["foldl'"]` for names JavaScript
 // cannot spell after a dot.

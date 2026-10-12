@@ -40,6 +40,13 @@ Every TypeScript tool applies to the compiled tree:
 - Linting and codemods. The TypeScript compiler API over all of nixpkgs:
   find every package that does X, rewrite it.
 
+## A typed editor
+
+The playground's TypeScript pane is CodeMirror today. Monaco, the editor
+inside VS Code, can run the TypeScript language service in the browser,
+and given the runtime's declarations and a typed view of nixpkgs it
+would complete `pkgs.` and check a hand-written derivation as you type.
+
 ## The parity audit as a site
 
 The whole-nixpkgs run ([verification.md](./verification.md)) produces,
