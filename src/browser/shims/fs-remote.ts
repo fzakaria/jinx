@@ -105,6 +105,10 @@ export async function prefetch(
       if (loc === null || isDir(loc.entry)) {
         continue;
       }
+      // A blocking read may have fetched the file since the queue was made.
+      if (contents.has(loc.mount.path + "/" + loc.rel.join("/"))) {
+        continue;
+      }
       try {
         const res = (await fetch(
           fileUrl(loc.mount, loc.rel, loc.entry),

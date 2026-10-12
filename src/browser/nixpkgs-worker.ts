@@ -117,6 +117,8 @@ function shardOf(attr: string): string {
 }
 
 let filesUrl: string | null = null;
+// The hot prefetch started at init, which an evaluation waits for.
+let hotPrefetch: Promise<void> | null = null;
 const shards = new Map<string, Promise<FilesShard | null>>();
 
 async function fetchShard(key: string): Promise<FilesShard | null> {
@@ -288,9 +290,11 @@ async function init(msg: InitMessage): Promise<void> {
     ...activity(),
   });
   // After ready, so the page takes input while the files arrive; an
-  // evaluation asked for meanwhile fetches what is still missing itself.
+  // evaluation asked for meanwhile waits for them rather than fetching
+  // the same files one at a time.
   if (msg.hotUrl !== undefined) {
-    await prefetchHot(msg.hotUrl);
+    hotPrefetch = prefetchHot(msg.hotUrl);
+    await hotPrefetch;
     progress(true);
   }
 }
@@ -413,7 +417,8 @@ self.onmessage = (ev) => {
       return;
     }
     const attr = msg.attr;
-    prefetchAttr(attr)
+    (hotPrefetch ?? Promise.resolve())
+      .then(() => prefetchAttr(attr))
       .then(() => {
         const result = evaluate(attr);
         postMessage({ ...result, ...activity() });
