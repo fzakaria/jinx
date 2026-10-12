@@ -39,18 +39,24 @@ export type List = readonly Lazy[];
 // two representations are one thing to the rest of the runtime.
 export interface PlainAttrs {
   [name: string]: Lazy;
+  [POS]?: AttrPos;
 }
 
 export type Attrs = PlainAttrs | Layered;
 
 // Where a set's attributes were defined, for builtins.unsafeGetAttrPos,
-// which nixpkgs uses for meta.position. The emitter gives every literal
-// set a PosTable as its prototype: one table per literal site, shared by
-// every set the site creates, holding nothing enumerable so the set's
-// own attributes are all a reader sees. Sets made by `//` get a table
-// that defers to the operands'.
+// which nixpkgs reads for meta.position. A set carries its positions
+// under the POS symbol: a PosTable for a literal set, one per literal
+// site in the emitted module and shared by every set the site creates;
+// a MergedPos for `//`; the source's positions for a set a builtin
+// derived from another. A symbol-keyed property is invisible to
+// Object.keys and to the `in` checks on attribute names, and costs V8
+// nothing, where a prototype per set made every set its own hidden
+// class.
+export const POS: unique symbol = Symbol("jinx.pos");
+
 export abstract class AttrPos {
-  abstract lookup(name: string, set: PlainAttrs): Pos | null;
+  abstract lookup(name: string): Pos | null;
 }
 
 export interface Pos {
@@ -68,14 +74,10 @@ export class PosTable extends AttrPos {
     entries: readonly (readonly [string, number, number])[],
   ) {
     super();
-    // Non-enumerable, so a for-in over a set with this prototype sees
-    // only the set's own attributes.
     const map = new Map<string, readonly [number, number]>();
     for (const [name, line, column] of entries) {
       map.set(name, [line, column]);
     }
-    Object.defineProperty(this, "file", { value: file, enumerable: false });
-    Object.defineProperty(this, "entries", { value: map, enumerable: false });
     this.file = file;
     this.entries = map;
   }
@@ -89,52 +91,43 @@ export class PosTable extends AttrPos {
 }
 
 // The positions of `x // y` as a flat set: y's for what it holds, x's
-// otherwise.
+// otherwise. Holds y, which is the small side, and only x's positions,
+// so a merge does not keep the large side alive.
 class MergedPos extends AttrPos {
-  private readonly x: Attrs;
+  private readonly x: AttrPos | null;
   private readonly y: Attrs;
 
   constructor(x: Attrs, y: Attrs) {
     super();
-    Object.defineProperty(this, "x", { value: x, enumerable: false });
-    Object.defineProperty(this, "y", { value: y, enumerable: false });
-    this.x = x;
+    this.x = posOf(x);
     this.y = y;
   }
 
   override lookup(name: string): Pos | null {
-    return hasAttr(this.y, name)
-      ? attrPos(this.y, name)
-      : attrPos(this.x, name);
+    if (hasAttr(this.y, name)) {
+      return attrPos(this.y, name);
+    }
+    return this.x === null ? null : this.x.lookup(name);
   }
 }
 
-// The positions of a set a builtin derived from another (mapAttrs,
-// removeAttrs): the source's.
-class SamePos extends AttrPos {
-  private readonly source: Attrs;
+// The positions of a layered set, looked up layer by layer.
+class LayeredPos extends AttrPos {
+  private readonly set: Layered;
 
-  constructor(source: Attrs) {
+  constructor(set: Layered) {
     super();
-    Object.defineProperty(this, "source", { value: source, enumerable: false });
-    this.source = source;
+    this.set = set;
   }
 
   override lookup(name: string): Pos | null {
-    return attrPos(this.source, name);
+    return attrPos(this.set, name);
   }
 }
 
 // Positions gathered one attribute at a time (listToAttrs).
 export class MapPos extends AttrPos {
-  private readonly map: Map<string, Pos>;
-
-  constructor() {
-    super();
-    const map = new Map<string, Pos>();
-    Object.defineProperty(this, "map", { value: map, enumerable: false });
-    this.map = map;
-  }
+  private readonly map = new Map<string, Pos>();
 
   set(name: string, pos: Pos): void {
     this.map.set(name, pos);
@@ -152,9 +145,19 @@ export function positions(
   return new PosTable(file, entries);
 }
 
-// A fresh plain set whose attributes report the positions of `source`'s.
+// The positions of a set, or null when it has none.
+export function posOf(a: Attrs): AttrPos | null {
+  if (a instanceof Layered) {
+    return a.positions();
+  }
+  return a[POS] ?? null;
+}
+
+// A fresh plain set whose attributes report the positions of `source`'s
+// (mapAttrs, removeAttrs, intersectAttrs).
 export function derivedAttrs(source: Attrs): PlainAttrs {
-  return { __proto__: new SamePos(source) } as unknown as PlainAttrs;
+  const pos = posOf(source);
+  return pos === null ? {} : { [POS]: pos };
 }
 
 // builtins.unsafeGetAttrPos
@@ -164,11 +167,8 @@ export function attrPos(a: Attrs, name: string): Pos | null {
       ? attrPos(a.over, name)
       : attrPos(a.base, name);
   }
-  const proto: unknown = Object.getPrototypeOf(a);
-  if (proto instanceof AttrPos) {
-    return proto.lookup(name, a);
-  }
-  return null;
+  const pos = a[POS];
+  return pos === undefined ? null : pos.lookup(name);
 }
 
 // `base // over` without copying base. nixpkgs builds its package set as
@@ -182,6 +182,7 @@ export class Layered {
   readonly over: Attrs;
   readonly depth: number;
   private flat: PlainAttrs | null = null;
+  private pos: LayeredPos | null = null;
 
   constructor(base: Attrs, over: Attrs) {
     this.base = base;
@@ -225,15 +226,21 @@ export class Layered {
       overs.push(a.over);
       a = a.base;
     }
-    const flat = {
-      __proto__: new SamePos(this),
-      ...(a instanceof Layered ? a.flat! : a),
-    } as unknown as PlainAttrs;
+    const flat: PlainAttrs = { ...(a instanceof Layered ? a.flat! : a) };
     for (let i = overs.length - 1; i >= 0; i--) {
       Object.assign(flat, toPlain(overs[i]!));
     }
+    // After the copies, which carry the layers' own POS along.
+    flat[POS] = this.positions();
     this.flat = flat;
     return flat;
+  }
+
+  positions(): LayeredPos {
+    if (this.pos === null) {
+      this.pos = new LayeredPos(this);
+    }
+    return this.pos;
   }
 
   // Layers are only made over non-empty sets, so a layered set is never
@@ -321,22 +328,14 @@ export function updateAttrs(x: Attrs, y: Attrs): Attrs {
   }
   if (x instanceof Layered) {
     if (x.depth >= MAX_LAYERS) {
-      return {
-        __proto__: new MergedPos(x, y),
-        ...x.flatten(),
-        ...toPlain(y),
-      } as unknown as PlainAttrs;
+      return { ...x.flatten(), ...toPlain(y), [POS]: new MergedPos(x, y) };
     }
     return new Layered(x, y);
   }
   if (isLargeAttrs(x)) {
     return new Layered(x, y);
   }
-  return {
-    __proto__: new MergedPos(x, y),
-    ...x,
-    ...toPlain(y),
-  } as unknown as PlainAttrs;
+  return { ...x, ...toPlain(y), [POS]: new MergedPos(x, y) };
 }
 
 export interface Formals {
@@ -493,9 +492,7 @@ export function isAttrs(v: Value): v is Attrs {
     return true;
   }
   const proto: unknown = Object.getPrototypeOf(v);
-  return (
-    proto === Object.prototype || proto === null || proto instanceof AttrPos
-  );
+  return proto === Object.prototype || proto === null;
 }
 
 export function isList(v: Value): v is List {

@@ -1,0 +1,2 @@
+ok
+{ intery = { column = 9; file = "positions.nix"; line = 5; }; lk = { column = 66; file = "positions.nix"; line = 7; }; ltap = { column = 46; file = "positions.nix"; line = 12; }; lx = { column = 9; file = "positions.nix"; line = 4; }; ly = { column = 9; file = "positions.nix"; line = 5; }; mapy = null; mx = { column = 9; file = "positions.nix"; line = 4; }; my = { column = 9; file = "positions.nix"; line = 5; }; mz = { column = 16; file = "positions.nix"; line = 5; }; none = null; remy = { column = 9; file = "positions.nix"; line = 5; }; }

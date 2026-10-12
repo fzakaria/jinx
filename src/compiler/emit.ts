@@ -391,7 +391,7 @@ class Emitter {
         ? "{}"
         : this.bracketed(
             "{",
-            table === null ? props : [`__proto__: ${table}`, ...props],
+            table === null ? props : [`[nix.POS]: ${table}`, ...props],
             "}",
             depth,
           );
@@ -518,7 +518,7 @@ class Emitter {
         ? "{}"
         : this.bracketed(
             "{",
-            table === null ? props : [`__proto__: ${table}`, ...props],
+            table === null ? props : [`[nix.POS]: ${table}`, ...props],
             "}",
             depth + 1,
           );

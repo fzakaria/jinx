@@ -104,6 +104,7 @@ import {
   attrPos,
   derivedAttrs,
   MapPos,
+  POS,
 } from "./value.ts";
 import { toXml } from "./xml.ts";
 import { fromToml } from "./toml.ts";
@@ -806,7 +807,7 @@ def("removeAttrs", 2, (a, names) => {
 // Each attribute takes the position of its element's `value`, as in Nix.
 def("listToAttrs", 1, (l) => {
   const pos = new MapPos();
-  const out = { __proto__: pos } as unknown as PlainAttrs;
+  const out: PlainAttrs = { [POS]: pos };
   for (const e of forceList(l)) {
     const item = forceAttrs(e);
     const name = forceStringNoCtx(attr(item, "name"));
