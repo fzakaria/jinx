@@ -65,25 +65,29 @@ export interface Pos {
   readonly column: number;
 }
 
+export type PosEntries = readonly (readonly [string, number, number])[];
+
+// One literal site: its entries, indexed on the first lookup, since few
+// sets are ever asked for a position.
 export class PosTable extends AttrPos {
   private readonly file: string;
-  private readonly entries: ReadonlyMap<string, readonly [number, number]>;
+  private readonly entries: PosEntries;
+  private index: Map<string, readonly [number, number]> | null = null;
 
-  constructor(
-    file: string,
-    entries: readonly (readonly [string, number, number])[],
-  ) {
+  constructor(file: string, entries: PosEntries) {
     super();
-    const map = new Map<string, readonly [number, number]>();
-    for (const [name, line, column] of entries) {
-      map.set(name, [line, column]);
-    }
     this.file = file;
-    this.entries = map;
+    this.entries = entries;
   }
 
   override lookup(name: string): Pos | null {
-    const e = this.entries.get(name);
+    if (this.index === null) {
+      this.index = new Map();
+      for (const [n, line, column] of this.entries) {
+        this.index.set(n, [line, column]);
+      }
+    }
+    const e = this.index.get(name);
     return e === undefined
       ? null
       : { file: this.file, line: e[0], column: e[1] };
@@ -138,11 +142,12 @@ export class MapPos extends AttrPos {
   }
 }
 
+// A module's literal sites, one table each (`$pos` in emitted code).
 export function positions(
   file: string,
-  entries: readonly (readonly [string, number, number])[],
-): PosTable {
-  return new PosTable(file, entries);
+  sites: readonly PosEntries[],
+): PosTable[] {
+  return sites.map((entries) => new PosTable(file, entries));
 }
 
 // The positions of a set, or null when it has none.

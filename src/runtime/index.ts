@@ -11,5 +11,5 @@ export { pending, type Pending } from "./store.ts";
 // runtime that reads a tree compiled against another ABI refuses it with
 // a plain message instead of failing somewhere inside the evaluation.
 // Bump it when emitted code changes shape (positions moved from a
-// prototype to the POS symbol at 2).
-export const ABI = 2;
+// prototype to the POS symbol at 2; one position table per module at 3).
+export const ABI = 3;

@@ -26,6 +26,10 @@ import { BUILTIN_ARITY, GLOBALS } from "./builtins-table.ts";
 import { type Binding, Scope, isIdentifierName } from "./scope.ts";
 import { encodeSourceMap, extractMappings, marker } from "./sourcemap.ts";
 
+// The module-level table of attribute positions; a name no mangled Nix
+// identifier can take, since a `$` only ever follows a character.
+const POS_TABLE = "$pos";
+
 export interface EmitOptions {
   // The Nix file being compiled, absolute.
   readonly file: string;
@@ -91,7 +95,8 @@ class Emitter {
   // Module-level declarations hoisted out of the expression: formals.
   private readonly hoisted: string[] = [];
   private formalsCount = 0;
-  private posCount = 0;
+  // The literal sites of the module with positions, in the order met.
+  private readonly posSites: string[] = [];
   private usesHere = false;
   private readonly dir: string;
   private readonly base: string;
@@ -112,13 +117,21 @@ class Emitter {
       `import * as nix from ${JSON.stringify(this.opts.runtimeImport)};`,
     );
     lines.push("");
+    // The table names the file through `here`, so it comes first.
+    const posTable =
+      this.posSites.length === 0
+        ? null
+        : `const ${POS_TABLE} = nix.positions(${this.fileRef()}, [${this.posSites.join(", ")}]);`;
     if (this.usesHere) {
       lines.push("const here = nix.here(import.meta.url);");
+    }
+    if (posTable !== null) {
+      lines.push(posTable);
     }
     for (const h of this.hoisted) {
       lines.push(h);
     }
-    if (this.usesHere || this.hoisted.length > 0) {
+    if (this.usesHere || this.posSites.length > 0 || this.hoisted.length > 0) {
       lines.push("");
     }
     lines.push(`export default ${body};`);
@@ -404,8 +417,10 @@ class Emitter {
     return this.block([...pre, `return ${literal};`], depth);
   }
 
-  // The positions of a literal's static attributes, as a module-level
-  // table the literal takes as its prototype (builtins.unsafeGetAttrPos).
+  // The positions of a literal's static attributes, for
+  // builtins.unsafeGetAttrPos: one site in the module's table, which the
+  // literal carries under nix.POS. The table is one declaration per
+  // module, `$pos`, decoded a site at a time when a position is asked.
   private hoistPositions(bindings: readonly NixBinding[]): string | null {
     const entries = bindings
       .filter((b) => b.name.kind === "static")
@@ -416,11 +431,8 @@ class Emitter {
     if (entries.length === 0) {
       return null;
     }
-    const name = `pos$${++this.posCount}`;
-    this.hoisted.push(
-      `const ${name} = nix.positions(${this.fileRef()}, [${entries.join(", ")}]);`,
-    );
-    return name;
+    this.posSites.push(`[${entries.join(", ")}]`);
+    return `${POS_TABLE}[${this.posSites.length - 1}]`;
   }
 
   // The module's Nix file as an expression: `here` joined with the base

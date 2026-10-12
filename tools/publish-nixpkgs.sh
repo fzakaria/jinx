@@ -47,6 +47,12 @@ history=$(mktemp)
 if [ -f "$out/parity/history.json" ]; then
   cp "$out/parity/history.json" "$history"
 fi
+# The per-attribute lists survive a publish that skips recording them:
+# the paths they name do not change with the compiler.
+keptFiles=$(mktemp -d)
+if [ "${JINX_ATTR_FILES:-1}" = 0 ] && [ -d "$out/.jinx/files" ]; then
+  cp -r "$out/.jinx/files" "$keptFiles/files"
+fi
 find "$out" -mindepth 1 -maxdepth 1 ! -name .git ! -name .jj -exec rm -rf {} +
 
 ulimit -s unlimited 2>/dev/null || true
@@ -94,10 +100,15 @@ rm -f "$names"
 # JINX_ATTR_FILES=0 skips it (the page then fetches as it goes).
 if [ "${JINX_ATTR_FILES:-1}" != 0 ]; then
   run "$here/tools/attr-files.ts" "$out" --jobs "${JINX_ATTR_FILES_JOBS:-$(nproc)}"
+elif [ -d "$keptFiles/files" ]; then
+  cp -r "$keptFiles/files" "$out/.jinx/files"
 fi
+rm -rf "$keptFiles"
 
 # The playground's NixOS example is not an attribute of pkgs; its list
-# goes under the name "nixos".
+# goes under the name "nixos". Recorded, like the rest, only when the
+# lists are.
+if [ "${JINX_ATTR_FILES:-1}" != 0 ]; then
 nixosExpr=$(mktemp --suffix=.nix)
 cat > "$nixosExpr" <<NIX
 (import $out/nixpkgs/nixos {
@@ -116,6 +127,7 @@ rm -f "$nixosExpr"
 # share pulled out into one document.
 run "$here/tools/pack-files.ts" "$out"
 rm -rf "$out/.jinx/files-raw"
+fi
 
 # The parity report for this revision, and the README written from it.
 if [ -n "$parity" ]; then
