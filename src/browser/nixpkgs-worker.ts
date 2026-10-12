@@ -41,6 +41,7 @@ import {
   onLoad,
   setRuntime,
 } from "./shims/module-remote.ts";
+import { FileLists } from "./file-lists.ts";
 
 // Where the two trees appear to the runtime. The compiled tree's runtime
 // is at /tree/.jinx/runtime, which is also what the bundle's
@@ -108,57 +109,11 @@ interface HotFiles {
   readonly src: readonly string[];
 }
 
-// A shard of per-attribute lists, by attribute name.
-type FilesShard = Record<string, HotFiles>;
+// The per-attribute file lists, once the indexes are mounted.
+let fileLists: FileLists | null = null;
 
-// The shard an attribute's list is in (tools/attr-files.ts).
-const SHARD_CHARS = 2;
-function shardOf(attr: string): string {
-  return attr.slice(0, SHARD_CHARS).replace(/[^A-Za-z0-9_-]/g, "_") || "_";
-}
-
-let filesUrl: string | null = null;
 // The hot prefetch started at init, which an evaluation waits for.
 let hotPrefetch: Promise<void> | null = null;
-const shards = new Map<string, Promise<FilesShard | null>>();
-
-async function fetchShard(key: string): Promise<FilesShard | null> {
-  if (filesUrl === null) {
-    return null;
-  }
-  try {
-    const res = (await fetch(
-      `${filesUrl}/${key}.json`,
-    )) as unknown as FetchResponse;
-    return res.ok ? ((await res.json()) as FilesShard) : null;
-  } catch {
-    return null;
-  }
-}
-
-// Fetch what evaluating `attr` reads beyond the hot set, in parallel. A
-// dotted path uses its first component's list.
-async function prefetchAttr(attr: string): Promise<void> {
-  const top = attr.split(".")[0]!;
-  const key = shardOf(top);
-  let shard = shards.get(key);
-  if (shard === undefined) {
-    shard = fetchShard(key);
-    shards.set(key, shard);
-  }
-  const files = (await shard)?.[top];
-  if (files === undefined) {
-    return;
-  }
-  await prefetch(
-    [
-      ...files.tree.map((p) => `${TREE_ROOT}/${p}`),
-      ...files.src.map((p) => `${SRC_ROOT}/${p}`),
-    ],
-    PREFETCH_CONCURRENCY,
-    (done, total) => postMessage({ type: "fetching", attr, done, total }),
-  );
-}
 
 interface EvalMessage {
   readonly type: "eval";
@@ -254,18 +209,19 @@ async function prefetchHot(url: string): Promise<void> {
 
 async function init(msg: InitMessage): Promise<void> {
   const started = performance.now();
-  mount(
-    TREE_ROOT,
-    msg.treeUrl,
-    loadIndex(msg.treeIndexUrl),
-    msg.treeBigUrl ?? null,
-  );
-  mount(
-    SRC_ROOT,
-    msg.srcUrl,
-    loadIndex(msg.srcIndexUrl),
-    msg.srcBigUrl ?? null,
-  );
+  const treeIndex = loadIndex(msg.treeIndexUrl);
+  const srcIndex = loadIndex(msg.srcIndexUrl);
+  mount(TREE_ROOT, msg.treeUrl, treeIndex, msg.treeBigUrl ?? null);
+  mount(SRC_ROOT, msg.srcUrl, srcIndex, msg.srcBigUrl ?? null);
+  if (msg.filesUrl !== undefined) {
+    fileLists = new FileLists(
+      msg.filesUrl,
+      TREE_ROOT,
+      SRC_ROOT,
+      treeIndex,
+      srcIndex,
+    );
+  }
   // The page fetches what a module will read next while this thread is
   // busy evaluating, so the blocking read that follows hits the cache.
   onImports(TREE_ROOT, SRC_ROOT, (urls) =>
@@ -280,7 +236,6 @@ async function init(msg: InitMessage): Promise<void> {
   nix.settings.log = (line) => postMessage({ type: "log", line });
 
   checkAbi();
-  filesUrl = msg.filesUrl ?? null;
   let names =
     msg.namesUrl === undefined ? null : await fetchNames(msg.namesUrl);
   if (names === null) {
@@ -422,7 +377,13 @@ self.onmessage = (ev) => {
     }
     const attr = msg.attr;
     (hotPrefetch ?? Promise.resolve())
-      .then(() => prefetchAttr(attr))
+      .then(() =>
+        fileLists === null
+          ? undefined
+          : fileLists.prefetchFor(attr, (done, total) =>
+              postMessage({ type: "fetching", attr, done, total }),
+            ),
+      )
       .then(() => {
         const result = evaluate(attr);
         postMessage({ ...result, ...activity() });

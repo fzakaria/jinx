@@ -7,10 +7,11 @@
 //
 // One `jinx eval --record-files` process per attribute, N at a time;
 // a fresh process each time, since modules a process has loaded are not
-// read again. The results go to <tree>/.jinx/files/<shard>.json, a
+// read again. The results go to <tree>/.jinx/files-raw/<shard>.json, a
 // shard per leading two characters of the attribute name, each
 // {"<attr>": {"tree": [...], "src": [...]}}; an attribute that fails to
-// evaluate is left out. Expect a few seconds per attribute: all of
+// evaluate is left out. tools/pack-files.ts turns them into what the
+// site reads. Expect a few seconds per attribute: all of
 // nixpkgs is hours on a laptop and minutes on a large machine.
 import { spawn } from "node:child_process";
 import {
@@ -23,12 +24,12 @@ import {
 import { cpus, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { shardOf } from "../src/browser/file-ids.ts";
 
 const SYSTEM = "x86_64-linux";
 const NAMES_FILE = ".jinx/names.json";
 const HOT_FILE = ".jinx/hot.json";
-const FILES_DIR = ".jinx/files";
-const SHARD_CHARS = 2;
+const FILES_DIR = ".jinx/files-raw";
 const PROGRESS_EVERY = 100;
 const STACK_SIZE_FLAG = "--stack-size=1000000";
 
@@ -77,12 +78,6 @@ const hot = JSON.parse(
 ) as Recorded;
 const hotTree = new Set(hot.tree);
 const hotSrc = new Set(hot.src);
-
-// The shard an attribute's record lives in: its first characters, with
-// anything a filename should not carry replaced.
-function shardOf(attr: string): string {
-  return attr.slice(0, SHARD_CHARS).replace(/[^A-Za-z0-9_-]/g, "_") || "_";
-}
 
 // Evaluate one attribute in a fresh process and return what it read
 // beyond the hot set, or null when the evaluation failed.

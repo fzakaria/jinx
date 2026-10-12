@@ -20,6 +20,7 @@ import {
   mount,
   prefetch,
 } from "./shims/fs-remote.ts";
+import { FileLists } from "./file-lists.ts";
 import { setRuntime } from "./shims/module-remote.ts";
 
 const TREE_ROOT = "/tree";
@@ -31,7 +32,6 @@ const PREFETCH_CONCURRENCY = 32;
 // Derivations sent back to the page at most; a package's closure has
 // hundreds, and the page shows the first of them.
 const DERIVATIONS_REPORTED = 100;
-const SHARD_CHARS = 2;
 
 declare function postMessage(message: unknown): void;
 declare const self: {
@@ -66,7 +66,7 @@ interface FileList {
   readonly src: readonly string[];
 }
 
-let filesUrl: string | null = null;
+let fileLists: FileLists | null = null;
 let hotPrefetch: Promise<void> = Promise.resolve();
 
 function loadIndex(url: string): IndexDir {
@@ -100,30 +100,25 @@ async function prefetchHot(url: string): Promise<void> {
   }
 }
 
-// The list under `name` in its shard of .jinx/files, fetched in parallel.
-async function prefetchFiles(name: string): Promise<void> {
-  if (filesUrl === null) {
-    return;
-  }
-  const key = name.slice(0, SHARD_CHARS).replace(/[^A-Za-z0-9_-]/g, "_") || "_";
-  const shard = await fetchJson<Record<string, FileList>>(
-    `${filesUrl}/${key}.json`,
-  );
-  const list = shard?.[name];
-  if (list !== undefined) {
-    await prefetch(paths(list), PREFETCH_CONCURRENCY, progress);
-  }
-}
-
 function init(msg: InitMessage): void {
-  mount(TREE_ROOT, msg.treeUrl, loadIndex(msg.treeIndexUrl));
-  mount(SRC_ROOT, msg.srcUrl, loadIndex(msg.srcIndexUrl));
+  const treeIndex = loadIndex(msg.treeIndexUrl);
+  const srcIndex = loadIndex(msg.srcIndexUrl);
+  mount(TREE_ROOT, msg.treeUrl, treeIndex);
+  mount(SRC_ROOT, msg.srcUrl, srcIndex);
+  if (msg.filesUrl !== undefined) {
+    fileLists = new FileLists(
+      msg.filesUrl,
+      TREE_ROOT,
+      SRC_ROOT,
+      treeIndex,
+      srcIndex,
+    );
+  }
   setRuntime(nix);
   nix.registerTree(COREPKGS_OUT, COREPKGS_SRC);
   nix.registerTree(TREE_ROOT, SRC_ROOT);
   nix.settings.nixPath = [{ prefix: NIXPKGS_PREFIX, path: SRC_ROOT }];
   nix.settings.log = (line) => postMessage({ type: "log", line });
-  filesUrl = msg.filesUrl ?? null;
   postMessage({ type: "ready" });
   if (msg.hotUrl !== undefined) {
     hotPrefetch = prefetchHot(msg.hotUrl);
@@ -132,8 +127,8 @@ function init(msg: InitMessage): void {
 
 async function run(msg: EvalMessage): Promise<void> {
   await hotPrefetch;
-  if (msg.files !== undefined) {
-    await prefetchFiles(msg.files);
+  if (msg.files !== undefined && fileLists !== null) {
+    await fileLists.prefetchFor(msg.files, progress);
   }
   const result = evaluate(
     msg.code,

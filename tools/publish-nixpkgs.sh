@@ -112,6 +112,11 @@ NIX
 run "$here/tools/record-extra.ts" "$out" nixos "$nixosExpr"
 rm -f "$nixosExpr"
 
+# The lists as the site reads them: ids, with the files most attributes
+# share pulled out into one document.
+run "$here/tools/pack-files.ts" "$out"
+rm -rf "$out/.jinx/files-raw"
+
 # The parity report for this revision, and the README written from it.
 if [ -n "$parity" ]; then
   mkdir -p "$out/parity"

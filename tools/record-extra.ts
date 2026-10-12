@@ -1,5 +1,5 @@
 // Record the files an expression reads beyond the hot set and store the
-// list under a name in the tree's .jinx/files, next to the per-attribute
+// list under a name in the tree's .jinx/files-raw, next to the per-attribute
 // lists tools/attr-files.ts writes. For the playground's examples that
 // are not one attribute of pkgs: a NixOS system.
 //
@@ -15,10 +15,10 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { shardOf } from "../src/browser/file-ids.ts";
 
 const HOT_FILE = ".jinx/hot.json";
-const FILES_DIR = ".jinx/files";
-const SHARD_CHARS = 2;
+const FILES_DIR = ".jinx/files-raw";
 const STACK_SIZE_FLAG = "--stack-size=1000000";
 
 interface Recorded {
@@ -67,7 +67,7 @@ const list: Recorded = {
   src: recorded.src.filter((p) => !hotSrc.has(p)),
 };
 
-const key = name.slice(0, SHARD_CHARS).replace(/[^A-Za-z0-9_-]/g, "_") || "_";
+const key = shardOf(name);
 const dir = join(tree, FILES_DIR);
 mkdirSync(dir, { recursive: true });
 const file = join(dir, `${key}.json`);
