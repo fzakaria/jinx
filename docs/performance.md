@@ -56,26 +56,44 @@ measures.
 ## The numbers
 
 nyx: AMD Ryzen 7 7840U, 16 threads, 61 GB. Nix 2.34.8, Node 24.21.0,
-nixpkgs 6510408d. jinx at `1b49288`.
+nixpkgs 6510408d. jinx at `8f8dac3`.
 
 | probe     |    nix | jinx cold | jinx warm | cold / nix | warm / nix | peak RSS nix | peak RSS jinx warm |
 | --------- | -----: | --------: | --------: | ---------: | ---------: | -----------: | -----------------: |
-| `lib`     | 0.53 s |    1.58 s |    1.42 s |       3.0x |       2.7x |       238 MB |             514 MB |
-| `hello`   | 0.37 s |    2.50 s |    1.98 s |       6.8x |       5.4x |        88 MB |             396 MB |
-| `firefox` | 3.37 s |   30.81 s |   23.71 s |       9.1x |       7.0x |       488 MB |            2264 MB |
-| `nixos`   | 4.14 s |   44.10 s |   31.63 s |      10.7x |       7.6x |       603 MB |            3129 MB |
-| `sample`  | 6.52 s |   38.53 s |   28.97 s |       5.9x |       4.4x |       712 MB |            3413 MB |
+| `lib`     | 0.53 s |    1.56 s |    1.31 s |       2.9x |       2.5x |       238 MB |             501 MB |
+| `hello`   | 0.37 s |    2.67 s |    1.72 s |       7.2x |       4.6x |        88 MB |             376 MB |
+| `firefox` | 3.19 s |   29.73 s |   11.44 s |       9.3x |       3.6x |       488 MB |            1608 MB |
+| `nixos`   | 4.21 s |   43.64 s |   21.35 s |      10.4x |       5.1x |       603 MB |            2377 MB |
+| `sample`  | 6.27 s |   36.18 s |   20.61 s |       5.8x |       3.3x |       712 MB |            2469 MB |
 
-Every probe's output matches Nix. jinx is 2.7x to 7.6x slower than Nix
-once the modules are compiled, and 3x to 11x on a first evaluation.
-The gap is narrowest on `lib`, which is function calls and list
-operations, and widest on the large closures, where memory is 4x to
-6x Nix's: a thunk is an object with a closure, an integer is an
-object, and a third of the time is the garbage collector.
+Every probe's output matches Nix. jinx is 2.5x to 5.1x slower than Nix
+once the modules are compiled and their code cached, and 3x to 10x on
+a first evaluation, which compiles every module it reaches. The gap is
+narrowest on `lib`, which is function calls and list operations, and
+widest on the NixOS closure; memory is 2x to 4x Nix's: a thunk is an
+object with a closure, an integer is an object.
 
 Node runs the TypeScript directly, stripping types as each module
-loads; a sixth of a cold firefox run is that stripping. A tree
-published as JavaScript, or a V8 code cache, would remove it.
+loads. jinx keeps V8's compiled code for every module across runs
+(node's compile cache, under `~/.cache/jinx`), which took four tenths
+off a warm run: before it, a warm evaluation stripped and parsed every
+module again.
+
+## What was tried
+
+Measured on firefox.drvPath, warm, on nyx:
+
+| change                                                                         |                                                                                     effect |
+| ------------------------------------------------------------------------------ | -----------------------------------------------------------------------------------------: |
+| node's compile cache                                                           |                                                         20.3 s to 12.2 s, 2.3 GB to 1.7 GB |
+| a one-argument fast path in `app`, a bounded size check, a regex ATerm escaper |                                                                           12.2 s to 10.8 s |
+| two fields per thunk instead of three                                          |                                                                                  1%, 10 MB |
+| attribute positions as a symbol property instead of a prototype                |                                   1.5x faster, 1.7x less memory than the prototype version |
+| `mapAttrs` as a lazy view                                                      |                                                                  4% less memory, same time |
+| V8's young generation at 64 or 128 MB                                          |                                                                                       none |
+| layering sets from 64 attributes instead of 256                                |                                                                           ten times slower |
+| layering from 1024                                                             |                                                                                       none |
+| the Go TypeScript compiler for the build                                       | type-checks the project in the same time as tsc; the evaluation does not go through either |
 
 ## Where the time goes
 

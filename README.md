@@ -75,7 +75,7 @@ $ nix-instantiate --eval --strict hello.nix
   one commit per tracked revision.
 - jinx evaluates nixpkgs in a browser tab from that tree, fetching the
   modules it needs: hello in 3 s over the network, Nix's drvPaths.
-- Per attribute, jinx is 2.7x to 7.6x slower than Nix
+- Per attribute, jinx is 2.5x to 5.1x slower than Nix
   ([performance](./docs/performance.md)).
 - All 41,313 `.nix` files in nixpkgs parse in 8 s and compile in 28 s.
 
