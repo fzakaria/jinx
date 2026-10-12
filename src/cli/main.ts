@@ -2,17 +2,18 @@
 //
 //   jinx compile <src-root> --out <dir>      transpile a tree
 //   jinx compile <file.nix>                  print one file's TypeScript
-//   jinx eval <file.nix> [-A a.b] [--json|--raw] [--tree dir] [--record-files out.json]
+//   jinx eval <file.nix> [-A a.b] [--arg n e] [--argstr n s] [--json|--raw] [--tree dir]
 //   jinx test-corpus <dir> [--record] [--offline]
 //   jinx adapter OP FILE [FLAGS...]          nix-conformance adapter
 //   jinx instantiate <file.nix> [-A a.b]     write the .drv closure to the store
 //   jinx eval-jobs <file.nix> [-A a.b] [--workers N] [--max-heap MB] [--skip-done out.jsonl] [--only attrs.txt]
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { compileToString, compileTree } from "../compiler/compile.ts";
-import { parseArgs } from "./args.ts";
+import { type NamedArg, parseArgs } from "./args.ts";
 import { recordedFiles, startRecording } from "./record-files.ts";
 import { DEFAULT_CACHE, evaluateFile, setup } from "./evaluate.ts";
 import { runCorpus } from "./corpus.ts";
@@ -25,6 +26,7 @@ import { printValue } from "../runtime/print.ts";
 import { copyPathToStore } from "../runtime/store.ts";
 import {
   app,
+  forceAttrs,
   forceStr,
   coerceToString,
   COERCE_INTERPOLATE,
@@ -89,12 +91,13 @@ function main(argv: string[]): number {
   if (cmd === undefined) {
     usage();
   }
-  const { positional, flags } = parseArgs(rest);
+  const parsed = parseArgs(rest);
+  const { positional, flags } = parsed;
   switch (cmd) {
     case "compile":
       return compile(positional, flags);
     case "eval":
-      return evalCmd(positional, flags);
+      return evalCmd(positional, flags, parsed.args);
     case "test-corpus":
       return runCorpus(positional[0] ?? "tests/corpus", {
         record: flags.has("record"),
@@ -177,9 +180,33 @@ function compile(
   return report.failed.length === 0 ? 0 : 1;
 }
 
+// The set `--arg` and `--argstr` build, evaluated from a file written for
+// the purpose: a path in an --arg expression is relative to the current
+// directory, so `./x` becomes absolute before it is written out.
+function namedArgs(args: readonly NamedArg[]): Attrs | null {
+  if (args.length === 0) {
+    return null;
+  }
+  const bindings = args.map(({ name, value, kind }) => {
+    const expr =
+      kind === "string"
+        ? JSON.stringify(value)
+        : value.replace(
+            /(^|[\s(\[=])(\.\.?\/[^\s)\];]*)/g,
+            (_, before: string, p: string) => before + resolve(p),
+          );
+    return `  ${JSON.stringify(name)} = ${expr};`;
+  });
+  const dir = mkdtempSync(join(tmpdir(), "jinx-args-"));
+  const file = join(dir, "args.nix");
+  writeFileSync(file, `{\n${bindings.join("\n")}\n}\n`);
+  return forceAttrs(evaluateFile(file, [], null));
+}
+
 function evalCmd(
   positional: string[],
   flags: Map<string, string | true>,
+  args: readonly NamedArg[],
 ): number {
   const file = positional[0];
   if (file === undefined) {
@@ -205,7 +232,7 @@ function evalCmd(
     typeof attr === "string" && attr !== "" ? attr.split(".") : [];
   settings.impure = flags.has("impure");
   try {
-    const v = evaluateFile(file, attrPath, null);
+    const v = evaluateFile(file, attrPath, namedArgs(args));
     if (flags.has("json")) {
       const { json } = toJson(v, {
         applyToString: (a: Attrs) =>

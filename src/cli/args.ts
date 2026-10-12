@@ -8,7 +8,18 @@
 export interface Parsed {
   positional: string[];
   flags: Map<string, string | true>;
+  // `--arg name expr` and `--argstr name string`, in order given.
+  args: NamedArg[];
 }
+
+export interface NamedArg {
+  readonly name: string;
+  readonly value: string;
+  readonly kind: "expr" | "string";
+}
+
+const ARG_FLAG = "--arg";
+const ARGSTR_FLAG = "--argstr";
 
 const FLAG_PREFIX = "--";
 const ARGS_END = "--";
@@ -21,8 +32,6 @@ export const VALUE_FLAGS: ReadonlySet<string> = new Set([
   "system",
   "cache",
   "floor",
-  "arg",
-  "argstr",
   "workers",
   "tree",
   "max-heap",
@@ -34,11 +43,22 @@ export const VALUE_FLAGS: ReadonlySet<string> = new Set([
 export function parseArgs(argv: string[]): Parsed {
   const positional: string[] = [];
   const flags = new Map<string, string | true>();
+  const args: NamedArg[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === ARGS_END) {
       positional.push(...argv.slice(i + 1));
       break;
+    }
+    if (a === ARG_FLAG || a === ARGSTR_FLAG) {
+      const name = argv[i + 1];
+      const value = argv[i + 2];
+      if (name === undefined || value === undefined) {
+        throw new Error(`${a} needs a name and a value`);
+      }
+      args.push({ name, value, kind: a === ARG_FLAG ? "expr" : "string" });
+      i += 2;
+      continue;
     }
     if (a.startsWith(FLAG_PREFIX)) {
       const eq = a.indexOf("=");
@@ -66,5 +86,5 @@ export function parseArgs(argv: string[]): Parsed {
     }
     positional.push(a);
   }
-  return { positional, flags };
+  return { positional, flags, args };
 }

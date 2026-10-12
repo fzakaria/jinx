@@ -39,3 +39,24 @@ test("-A sets attr", () => {
   const p = parseArgs(["eval", "x.nix", "-A", "a.b"]);
   assert.equal(p.flags.get("attr"), "a.b");
 });
+
+// `--arg name expr` and `--argstr name string` are collected as pairs, in
+// order, and are not flags.
+test("--arg and --argstr collect pairs", () => {
+  const p = parseArgs([
+    "eval",
+    "x.nix",
+    "--arg",
+    "a",
+    "1 + 1",
+    "--argstr",
+    "b",
+    "s",
+  ]);
+  assert.deepEqual(p.args, [
+    { name: "a", value: "1 + 1", kind: "expr" },
+    { name: "b", value: "s", kind: "string" },
+  ]);
+  assert.equal(p.flags.size, 0);
+  assert.deepEqual(p.positional, ["eval", "x.nix"]);
+});
