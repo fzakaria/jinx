@@ -41,9 +41,13 @@ pkgs.stdenvNoCC.mkDerivation {
     runHook preInstall
     mkdir -p $out/lib/jinx $out/bin
     cp -r src package.json tsconfig.json $out/lib/jinx/
+    # A Nix evaluation recurses deeper than node's default stack, and
+    # deeper than the 8 MB the OS gives the main thread: the wrapper lifts
+    # the OS limit where it can and hands V8 a stack to match.
     cat > $out/bin/jinx <<WRAPPER
     #!${pkgs.runtimeShell}
-    exec ${pkgs.nodejs_24}/bin/node --disable-warning=ExperimentalWarning $out/lib/jinx/src/cli/main.ts "\$@"
+    ulimit -s unlimited 2>/dev/null || ulimit -s "\$(ulimit -Hs)" 2>/dev/null || true
+    exec ${pkgs.nodejs_24}/bin/node --disable-warning=ExperimentalWarning --enable-source-maps --stack-size=1000000 $out/lib/jinx/src/cli/main.ts "\$@"
     WRAPPER
     chmod +x $out/bin/jinx
     runHook postInstall

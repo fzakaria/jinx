@@ -13,4 +13,6 @@ set -u
 main=${JINX_MAIN:-"$(dirname "$0")/../src/cli/main.ts"}
 : "${JINX_CACHE:=${XDG_CACHE_HOME:-${TMPDIR:-/tmp}}/jinx/conformance-fs}"
 export JINX_CACHE
-exec timeout "${JINX_ADAPTER_TIMEOUT:-60}" node --disable-warning=ExperimentalWarning --stack-size=65500 "$main" adapter -- "$@"
+# The OS stack must be lifted before V8's, or deep recursion segfaults.
+ulimit -s unlimited 2>/dev/null || ulimit -s "$(ulimit -Hs)" 2>/dev/null || true
+exec timeout "${JINX_ADAPTER_TIMEOUT:-60}" node --disable-warning=ExperimentalWarning --stack-size=1000000 "$main" adapter -- "$@"
