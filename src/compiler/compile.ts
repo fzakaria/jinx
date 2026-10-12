@@ -10,6 +10,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -142,10 +143,15 @@ export function compileFile(opts: TreeOptions, nixFile: string): string {
       sourceRelative: relative(dirname(out), file),
     },
   });
+  // Written whole and renamed into place: several workers may compile the
+  // same module at once, and a reader must never see a partial file.
   mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(out, typescript);
+  const tmp = `${out}.${process.pid}.tmp`;
+  writeFileSync(tmp, typescript);
+  renameSync(tmp, out);
   if (sourceMap !== null) {
-    writeFileSync(`${out}.map`, sourceMap);
+    writeFileSync(`${tmp}.map`, sourceMap);
+    renameSync(`${tmp}.map`, `${out}.map`);
   }
   return out;
 }

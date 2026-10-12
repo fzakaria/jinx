@@ -92,6 +92,21 @@ const VALUE_FLAGS: ReadonlySet<string> = new Set([
 // A worker's heap budget before it is replaced (eval-jobs).
 const DEFAULT_MAX_HEAP_MB = 6144;
 
+// The attribute paths to evaluate, one per line: `a.b.c`, or a JSON array
+// of names for names that contain dots.
+function onlyAttrs(file: string): string[][] {
+  const out: string[][] = [];
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    if (line === "") {
+      continue;
+    }
+    out.push(
+      line.startsWith("[") ? (JSON.parse(line) as string[]) : line.split("."),
+    );
+  }
+  return out;
+}
+
 // The attributes an earlier eval-jobs output already covers.
 function doneAttrs(file: string): Set<string> {
   const out = new Set<string>();
@@ -175,9 +190,7 @@ function main(argv: string[]): number {
             : new Set(),
         only:
           typeof flags.get("only") === "string"
-            ? readFileSync(flags.get("only") as string, "utf8")
-                .split("\n")
-                .filter((l) => l !== "")
+            ? onlyAttrs(flags.get("only") as string)
             : null,
       });
     }

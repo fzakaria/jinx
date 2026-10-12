@@ -53,7 +53,7 @@ export interface EvalJobsOptions {
   readonly skipDone: ReadonlySet<string>;
   // Evaluate exactly these attribute paths instead of walking the set:
   // the way to re-run the attributes a comparison flagged.
-  readonly only: readonly string[] | null;
+  readonly only: readonly (readonly string[])[] | null;
 }
 
 // Main thread -> worker: evaluate this attribute path.
@@ -82,7 +82,7 @@ const WORKER_HEAP_MB = 32768;
 export function evalJobs(opts: EvalJobsOptions): number {
   const started = performance.now();
   const queue: string[][] =
-    opts.only === null ? [[]] : opts.only.map((a) => a.split("."));
+    opts.only === null ? [[]] : opts.only.map((a) => [...a]);
   let inFlight = 0;
   let done = 0;
   let errors = 0;
