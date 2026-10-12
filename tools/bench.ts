@@ -108,7 +108,7 @@ const SAMPLE_ATTRS = [
   "kubernetes",
   "zig",
   "ocaml",
-  "erlang",
+  "beamPackages.erlang",
   "beamPackages.elixir",
   "ruby",
   "php",
@@ -124,7 +124,7 @@ const SAMPLE_ATTRS = [
   "maven",
   "dotnet-sdk",
   "mesa",
-  "xorg.xorgserver",
+  "xorg-server",
   "sway",
   "hyprland",
   "vscode",
@@ -139,7 +139,7 @@ const SAMPLE_ATTRS = [
   "pkgsCross.aarch64-multiplatform.hello",
   "pkgsStatic.hello",
   "pkgsMusl.hello",
-  "nixos-rebuild",
+  "nixos-rebuild-ng",
 ];
 
 // A NixOS configuration that evaluates in seconds but pulls in the whole

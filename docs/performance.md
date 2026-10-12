@@ -1,43 +1,41 @@
 # Performance
 
-How fast jinx evaluates nixpkgs, measured against Nix on the same
-machine and the same nixpkgs. The numbers here are from one run of
-[tools/bench.ts](../tools/bench.ts) on 2026-10-12; the page at
-[jinx.dev/bench](https://jinx.dev/bench/) draws every run since, from
-[site/bench/history.json](../site/bench/history.json). The design
-behind the numbers, and the three ways the design leaves to improve
-them, is the performance model in [design.md](./design.md#performance-model).
+How fast jinx evaluates nixpkgs against Nix on the same machine and the
+same nixpkgs. The numbers are one run of [tools/bench.ts](../tools/bench.ts)
+on 2026-10-12; [jinx.dev/bench](https://jinx.dev/bench/) draws every run
+from [site/bench/history.json](../site/bench/history.json). The design
+behind the numbers is the performance model in
+[design.md](./design.md#performance-model).
 
 ## What is measured
 
 Five probes, each a Nix expression that `nix-instantiate` and jinx both
-evaluate to JSON. The outputs are compared, so a benchmark run is also
-a parity check: a record says whether the two agreed.
+evaluate to JSON. The outputs are compared, so a run is also a parity
+check.
 
-| probe     | expression                                                                                                        |
-| --------- | ----------------------------------------------------------------------------------------------------------------- |
-| `lib`     | `builtins.length (import <nixpkgs>/lib/tests/misc.nix)`: the lib test suite, which exercises most of `lib`        |
-| `hello`   | `hello.drvPath`: stdenv, the fixpoint of `pkgs`, one package                                                      |
-| `firefox` | `firefox.drvPath`: a deep dependency graph through rust, gtk and the wrapper                                      |
-| `nixos`   | `config.system.build.toplevel.drvPath` of a minimal NixOS configuration (a root filesystem, grub, `stateVersion`) |
-| `sample`  | the drvPath of every package in the 66-package sample [verification.md](./verification.md) reports parity on      |
+| probe     | expression                                                                                    |
+| --------- | --------------------------------------------------------------------------------------------- |
+| `lib`     | `builtins.length (import <nixpkgs>/lib/tests/misc.nix)`: the lib test suite, most of `lib`    |
+| `hello`   | `hello.drvPath`: stdenv, the fixpoint of `pkgs`, one package                                  |
+| `firefox` | `firefox.drvPath`: a deep dependency graph through rust, gtk and the wrapper                  |
+| `nixos`   | `config.system.build.toplevel.drvPath` of a minimal NixOS configuration                       |
+| `sample`  | the drvPath of every package in a 66-package sample across languages, cross and static builds |
 
 The sample imports nixpkgs with `allowUnfree = true` and
 `allowAliases = false`; the others take the defaults. Nix runs as
-`nix-instantiate --eval --strict --read-write-mode --json`. jinx runs as
-`jinx eval --json --cache <dir>`, twice:
+`nix-instantiate --eval --strict --read-write-mode --json`. jinx runs
+as `jinx eval --json --cache <dir>`, twice:
 
-- cold, with an empty cache: every `.nix` file the evaluation reaches is
-  compiled to TypeScript on demand, written out, and loaded. This is
-  what a first evaluation costs, compiler included.
+- cold, with an empty cache: every `.nix` file the evaluation reaches
+  is compiled on demand, written out and loaded. What a first
+  evaluation costs, compiler included.
 - warm, into the cache the cold run left: the compiled modules are
-  present and only loaded, which is what every evaluation after the
-  first costs, and what a precompiled tree (`jinx compile --out`) gives
-  from the start.
+  present and only loaded. What every later evaluation costs, and what
+  a precompiled tree gives from the start.
 
-Each timing is wall seconds and peak resident set under GNU `time`, as
-the median of three runs. The tool prints the three raw times alongside
-the median so a noisy run is visible.
+Each timing is wall seconds and peak resident set under GNU `time`,
+the median of three runs; the tool prints the three raw times next to
+the median.
 
 ## How to run it
 
@@ -48,70 +46,61 @@ $ nix run .#bench -- --nixpkgs /path/to/nixpkgs
 ```
 
 The app puts nix, node and GNU time on PATH and measures the installed
-`jinx` wrapper. From the dev shell, `node tools/bench.ts` measures
-`src/cli/main.ts` directly, with the same node flags the wrapper uses.
-The whole run takes about ten minutes, most of it the sample.
+`jinx`. From the dev shell, `node tools/bench.ts` measures
+`src/cli/main.ts` directly. The whole run takes about fifteen minutes.
 
-A record carries the jinx commit, the nixpkgs revision or store path,
-the Nix and Node versions, and the machine, so the history is only
-compared within one machine and one nixpkgs. Commit the appended
-record with the change it measures.
+A record carries the jinx commit, the nixpkgs path, the Nix and Node
+versions and the machine, so the history is compared within one
+machine and one nixpkgs. Commit the appended record with the change it
+measures.
 
 ## The numbers
 
 nyx: AMD Ryzen 7 7840U, 16 threads, 61 GB. Nix 2.34.8, Node 24.21.0,
-nixpkgs `4k79ns9drp02wyvcix81c7nnz4hn8psi-source` (nixos-unstable,
-25.11pre). jinx at `5ef5c1a`.
+nixpkgs 6510408d. jinx at `1b49288`.
 
-| probe     |    nix | jinx cold | jinx warm | cold / nix | warm / nix | peak RSS nix | peak RSS jinx warm | outputs    |
-| --------- | -----: | --------: | --------: | ---------: | ---------: | -----------: | -----------------: | ---------- |
-| `lib`     | 0.50 s |    1.43 s |    1.29 s |       2.9x |       2.6x |       217 MB |             490 MB | identical  |
-| `hello`   | 0.32 s |    2.31 s |    1.73 s |       7.2x |       5.4x |        93 MB |             352 MB | identical  |
-| `firefox` | 1.84 s |    9.89 s |    8.03 s |       5.4x |       4.4x |       343 MB |             817 MB | identical  |
-| `nixos`   | 3.66 s |         – |         – |          – |          – |       597 MB |                  – | jinx fails |
-| `sample`  | 5.31 s |   32.22 s |   24.44 s |       6.1x |       4.6x |       658 MB |            2533 MB | identical  |
+| probe     |    nix | jinx cold | jinx warm | cold / nix | warm / nix | peak RSS nix | peak RSS jinx warm |
+| --------- | -----: | --------: | --------: | ---------: | ---------: | -----------: | -----------------: |
+| `lib`     | 0.53 s |    1.58 s |    1.42 s |       3.0x |       2.7x |       238 MB |             514 MB |
+| `hello`   | 0.37 s |    2.50 s |    1.98 s |       6.8x |       5.4x |        88 MB |             396 MB |
+| `firefox` | 3.37 s |   30.81 s |   23.71 s |       9.1x |       7.0x |       488 MB |            2264 MB |
+| `nixos`   | 4.14 s |   44.10 s |   31.63 s |      10.7x |       7.6x |       603 MB |            3129 MB |
+| `sample`  | 6.52 s |   38.53 s |   28.97 s |       5.9x |       4.4x |       712 MB |            3413 MB |
 
-jinx is between 2.6x and 5.4x slower than Nix once the modules are
-compiled, and 3x to 7x on a first evaluation. The gap is narrowest on
-`lib`, which is mostly function calls and list operations, and widest
-on `hello`, where a fixed cost dominates: `hello` itself is a few
-lines, so most of its 1.7 s is the `pkgs` fixpoint and stdenv, which
-every package pays and which Nix gets through in 0.3 s. Memory is 2x
-to 4x Nix's: a thunk is a heap object with a closure, an integer is a
-heap object, and the collector decides when anything is freed.
+Every probe's output matches Nix. jinx is 2.7x to 7.6x slower than Nix
+once the modules are compiled, and 3x to 11x on a first evaluation.
+The gap is narrowest on `lib`, which is function calls and list
+operations, and widest on the large closures, where memory is 4x to
+6x Nix's: a thunk is an object with a closure, an integer is an
+object, and a third of the time is the garbage collector.
 
-The NixOS closure does not evaluate on jinx yet. The module system gets
-as far as `system.build.toplevel` and stops in `lib.path.hasStorePathPrefix`
-with "Argument has a filesystem root (.) that's not /": a path value
-whose root jinx reports differently from Nix. The record keeps the error
-and the page draws the gap, which is the point of measuring it.
+Node runs the TypeScript directly, stripping types as each module
+loads; a sixth of a cold firefox run is that stripping. A tree
+published as JavaScript, or a V8 code cache, would remove it.
 
-Node 24 runs the TypeScript directly, stripping types as each module
-loads. That is part of the warm number: the compiled tree is read,
-stripped and parsed on every run. A V8 code cache or a bundle would
-remove it.
+## What changed the numbers
+
+- Layered attribute sets (`//` on a large set makes a two-layer view
+  instead of a copy): the sample went from 60 s to 27 s.
+- Attribute positions as a symbol property instead of a prototype per
+  set: firefox from 20.6 s and 1.43 GB back to 13.7 s and 977 MB on the
+  nixpkgs of the time. A prototype per set gave V8 a hidden class per
+  set and kept both operands of every merge alive.
+- `mapAttrs` as a lazy view: 2.30 GB peak from 2.38 on firefox. Most
+  mapped sets are enumerated by a later `//` and flattened, which is
+  where the rest of the memory stays.
 
 ## Where the time goes
 
-The performance model in [design.md](./design.md#performance-model)
-reports the profile of the sample, which splits roughly as:
+A CPU profile of firefox: a third in the garbage collector, a sixth in
+type stripping at load, a tenth in `app` (the function-application
+path: formals, `functionArgs` reflection for `callPackage`, a thunk per
+argument), a tenth in `//`, flattening and the other attribute set
+operations, a twentieth building and hashing ATerms, the rest spread
+across forcing and the builtins. A heap profile puts the live memory
+in the flattened package sets and in `updateAttrs`.
 
-- a tenth in `app`, the function-application path: argument formals,
-  `functionArgs` reflection for `callPackage`, and the thunk per
-  argument;
-- a tenth in building and hashing ATerms for derivations, which Nix
-  does in C++ with its own hash;
-- a tenth in loading and type-stripping modules, which the cold number
-  pays on top of compiling them, and a precompiled tree would not;
-- a fifth in attribute set operations: `//`, `intersectAttrs`,
-  `removeAttrs` and `mapAttrs` over the layered sets that `callPackage`
-  and the overlays produce;
-- the rest spread across forcing, garbage collection and the builtins.
-
-The two that dominated before the layered attribute sets were the
-`intersectAttrs` of every `callPackage`, which iterated all of `pkgs`,
-and the `//` copies. What the design leaves to win is in the model:
-compile-time strictness analysis to skip thunks the emitter can prove
-are forced, whole-program resolution of `callPackage` sites and `with
-lib;`, and a startup snapshot of the evaluated fixpoint so that an
-evaluation after the first starts where the first left off.
+What is left to win is in the model: strictness analysis to skip
+thunks the emitter can prove are forced, whole-program resolution of
+`callPackage` sites and `with lib;`, and a startup snapshot of the
+evaluated fixpoint.

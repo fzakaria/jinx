@@ -92,6 +92,103 @@
           "match": true
         }
       }
+    },
+    {
+      "date": "2026-10-12T17:50:12.280Z",
+      "jinxCommit": "1b49288eb73704e559f9322f760bc716aa040b49",
+      "nixpkgs": "rhsxvv1380jmchb5p3a43d24mhlmp2ry-source",
+      "nixpkgsPath": "/nix/store/rhsxvv1380jmchb5p3a43d24mhlmp2ry-source",
+      "nixVersion": "2.34.8",
+      "nodeVersion": "24.21.0",
+      "machine": {
+        "host": "nyx",
+        "cpu": "AMD Ryzen 7 7840U w/ Radeon 780M Graphics",
+        "cores": 16,
+        "memoryGb": 61
+      },
+      "runs": 3,
+      "probes": {
+        "lib": {
+          "description": "the lib test suite, lib/tests/misc.nix",
+          "nix": {
+            "seconds": 0.53,
+            "maxRssMb": 238
+          },
+          "jinxCold": {
+            "seconds": 1.58,
+            "maxRssMb": 521
+          },
+          "jinxWarm": {
+            "seconds": 1.42,
+            "maxRssMb": 514
+          },
+          "match": true
+        },
+        "hello": {
+          "description": "hello.drvPath",
+          "nix": {
+            "seconds": 0.37,
+            "maxRssMb": 88
+          },
+          "jinxCold": {
+            "seconds": 2.5,
+            "maxRssMb": 402
+          },
+          "jinxWarm": {
+            "seconds": 1.98,
+            "maxRssMb": 396
+          },
+          "match": true
+        },
+        "firefox": {
+          "description": "firefox.drvPath",
+          "nix": {
+            "seconds": 3.37,
+            "maxRssMb": 488
+          },
+          "jinxCold": {
+            "seconds": 30.81,
+            "maxRssMb": 3681
+          },
+          "jinxWarm": {
+            "seconds": 23.71,
+            "maxRssMb": 2264
+          },
+          "match": true
+        },
+        "nixos": {
+          "description": "a minimal NixOS closure, system.drvPath",
+          "nix": {
+            "seconds": 4.14,
+            "maxRssMb": 603
+          },
+          "jinxCold": {
+            "seconds": 44.1,
+            "maxRssMb": 3849
+          },
+          "jinxWarm": {
+            "seconds": 31.63,
+            "maxRssMb": 3129
+          },
+          "match": true
+        },
+        "sample": {
+          "description": "the 66-package sample, every drvPath",
+          "nix": {
+            "seconds": 6.52,
+            "maxRssMb": 712
+          },
+          "jinxCold": {
+            "seconds": 38.53,
+            "maxRssMb": 3957
+          },
+          "jinxWarm": {
+            "seconds": 28.97,
+            "maxRssMb": 3413
+          },
+          "match": true
+        }
+      }
     }
   ]
 }

@@ -73,8 +73,10 @@ $ nix-instantiate --eval --strict hello.nix
 - The compiled nixpkgs is published at
   [fzakaria/jinx-nixpkgs](https://github.com/fzakaria/jinx-nixpkgs),
   one commit per tracked revision.
-- jinx evaluates nixpkgs in a browser tab from that tree: hello in
-  1.7 s, firefox in 8 s, Nix's drvPaths.
+- jinx evaluates nixpkgs in a browser tab from that tree, fetching the
+  modules it needs: hello in 3 s over the network, Nix's drvPaths.
+- Per attribute, jinx is 2.7x to 7.6x slower than Nix
+  ([performance](./docs/performance.md)).
 - All 41,313 `.nix` files in nixpkgs parse in 8 s and compile in 28 s.
 
 <!-- END status -->
