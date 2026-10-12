@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # The nix-conformance adapter as an executable the suite's runner can call:
 #   ADAPTER OP FILE [FLAG...]
 # JINX_MAIN names another src/cli/main.ts to run; JINX_CACHE names the
