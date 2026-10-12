@@ -431,30 +431,18 @@ function drvClosure(drvPath: string): Set<string> {
 
 // ---- ATerm --------------------------------------------------------------------
 
+// The characters an ATerm string escapes, as Nix's printString does.
+const ATERM_ESCAPED = /["\\\n\r\t]/g;
+const ATERM_ESCAPES: Record<string, string> = {
+  '"': '\\"',
+  "\\": "\\\\",
+  "\n": "\\n",
+  "\r": "\\r",
+  "\t": "\\t",
+};
+
 function printString(s: string): string {
-  let out = '"';
-  for (const c of s) {
-    switch (c) {
-      case '"':
-        out += '\\"';
-        break;
-      case "\\":
-        out += "\\\\";
-        break;
-      case "\n":
-        out += "\\n";
-        break;
-      case "\r":
-        out += "\\r";
-        break;
-      case "\t":
-        out += "\\t";
-        break;
-      default:
-        out += c;
-    }
-  }
-  return out + '"';
+  return `"${s.replace(ATERM_ESCAPED, (c) => ATERM_ESCAPES[c]!)}"`;
 }
 
 function printUnquoted(s: string): string {

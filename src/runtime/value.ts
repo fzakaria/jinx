@@ -387,7 +387,21 @@ export function isEmptyAttrs(a: Attrs): boolean {
 // Whether a set is large enough to be worth layering rather than copying.
 // A layered set always is, by construction.
 export function isLargeAttrs(a: Attrs): boolean {
-  return a instanceof Layered || attrCount(a) >= LAYER_THRESHOLD;
+  if (a instanceof Layered) {
+    return true;
+  }
+  if (a instanceof Mapped) {
+    return isLargeAttrs(a.base);
+  }
+  // Count only as far as the threshold: most sets are small, and a large
+  // one is known to be large long before its last attribute.
+  let n = 0;
+  for (const _ in a) {
+    if (++n >= LAYER_THRESHOLD) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // `x // y`: shared thunks, nothing forced. Small left sides are copied;

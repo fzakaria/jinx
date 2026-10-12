@@ -236,6 +236,11 @@ export function argOr(attrs: Attrs, name: string, fallback: () => Value): Lazy {
 // itself first.
 export function app(fn: Lazy, ...args: Lazy[]): Value {
   let f = force(fn);
+  // The common call: one argument to a lambda, which needs none of the
+  // arity and functor handling below.
+  if (args.length === 1 && typeof f === "function" && !isPrimOp(f)) {
+    return (f as Lambda)(args[0]!);
+  }
   let i = 0;
   while (i < args.length) {
     if (typeof f === "function") {
