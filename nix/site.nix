@@ -59,7 +59,16 @@ let
       in
       # site/docs is what tools/build-site.sh renders locally; the docs
       # derivation below renders them again, so a stale local copy stays out.
-      (under "src" || under "site" || under "docs" || rel == "README.md") && !(under "site/docs");
+      (
+        under "src"
+        || under "site"
+        || under "docs"
+        || rel == "README.md"
+        || rel == "package.json"
+        || rel == "tools/pack-dts.ts"
+        || rel == "tools"
+      )
+      && !(under "site/docs");
   };
 
   # docs/*.md rendered to /docs/<name>.html, the way nixpkgs-multiverse does
@@ -78,51 +87,70 @@ let
           https://jinx.dev "__STORE_PATH__"
       '';
 in
-pkgs.runCommand "jinx-site" { nativeBuildInputs = [ pkgs.esbuild ]; } (
-  ''
-    mkdir -p $out
-    cp -r ${src}/site/. $out/
-    chmod -R u+w $out
-    cp -r ${docs} $out/docs
-    chmod -R u+w $out/docs
+pkgs.runCommand "jinx-site"
+  {
+    nativeBuildInputs = [
+      pkgs.esbuild
+      pkgs.nodejs_24
+      pkgs.typescript
+    ];
+  }
+  (
+    ''
+        mkdir -p $out
+        cp -r ${src}/site/. $out/
+        chmod -R u+w $out
+        cp -r ${docs} $out/docs
+        chmod -R u+w $out/docs
 
-    # The aliases and the inject are resolved against the working directory.
-    cd ${src}
-    esbuild src/browser/playground.ts \
-      --bundle --format=esm --platform=browser --target=es2022 \
-      --outfile=$out/js/jinx.js \
-      --alias:node:fs=./src/browser/shims/fs.ts \
-      --alias:node:path=./src/browser/shims/path.ts \
-      --alias:node:url=./src/browser/shims/url.ts \
-      --alias:node:module=./src/browser/shims/module.ts \
-      --alias:node:crypto=./src/browser/shims/crypto.ts \
-      --inject:./src/browser/shims/buffer.ts
+        # The aliases and the inject are resolved against the working directory.
+        cd ${src}
+        esbuild src/browser/playground.ts \
+          --bundle --format=esm --platform=browser --target=es2022 \
+          --outfile=$out/js/jinx.js \
+          --alias:node:fs=./src/browser/shims/fs.ts \
+          --alias:node:path=./src/browser/shims/path.ts \
+          --alias:node:url=./src/browser/shims/url.ts \
+          --alias:node:module=./src/browser/shims/module.ts \
+          --alias:node:crypto=./src/browser/shims/crypto.ts \
+          --inject:./src/browser/shims/buffer.ts
 
-    # The nixpkgs worker (site/nixpkgs/): the same runtime over a
-    # filesystem served by HTTP; see tools/build-site.sh for the define.
-    esbuild src/browser/nixpkgs-worker.ts \
-      --bundle --format=esm --platform=browser --target=es2022 \
-      --outfile=$out/js/nixpkgs-worker.js \
-      --alias:node:fs=./src/browser/shims/fs-remote.ts \
-      --alias:node:path=./src/browser/shims/path.ts \
-      --alias:node:url=./src/browser/shims/url.ts \
-      --alias:node:module=./src/browser/shims/module-remote.ts \
-      --alias:node:crypto=./src/browser/shims/crypto.ts \
-      --inject:./src/browser/shims/buffer.ts \
-      '--define:import.meta.url="file:///tree/.jinx/runtime/index.ts"'
+        # The nixpkgs worker (site/nixpkgs/): the same runtime over a
+        # filesystem served by HTTP; see tools/build-site.sh for the define.
+        esbuild src/browser/nixpkgs-worker.ts \
+          --bundle --format=esm --platform=browser --target=es2022 \
+          --outfile=$out/js/nixpkgs-worker.js \
+          --alias:node:fs=./src/browser/shims/fs-remote.ts \
+          --alias:node:path=./src/browser/shims/path.ts \
+          --alias:node:url=./src/browser/shims/url.ts \
+          --alias:node:module=./src/browser/shims/module-remote.ts \
+          --alias:node:crypto=./src/browser/shims/crypto.ts \
+          --inject:./src/browser/shims/buffer.ts \
+          '--define:import.meta.url="file:///tree/.jinx/runtime/index.ts"'
 
-    # The output path is known before building, so the page and the docs can
-    # name the very store path they are served out of (a benign
-    # self-reference, same as trynix and the multiverse).
-    substituteInPlace $out/js/app.js --replace-fail "__STORE_PATH__" "$out"
-    for f in $out/docs/*.html; do
-      substituteInPlace "$f" --replace-fail "__STORE_PATH__" "$out"
-    done
-  ''
-  + pkgs.lib.optionalString (tree != null) ''
+        # The declarations of the runtime and the view API, for completions in
+      # the TypeScript pane (tools/build-site.sh does the same locally).
+      dts=$(mktemp -d)
+      tsc --ignoreConfig src/runtime/index.ts src/lib/index.ts \
+        --declaration --emitDeclarationOnly --outDir "$dts" --rootDir . \
+        --module nodenext --moduleResolution nodenext --target es2024 \
+        --allowImportingTsExtensions --verbatimModuleSyntax --erasableSyntaxOnly \
+        --skipLibCheck --strict \
+        --types node --typeRoots ${import ./types-node.nix { inherit pkgs; }}/node_modules/@types
+      node --disable-warning=ExperimentalWarning tools/pack-dts.ts "$dts" $out/js/jinx-dts.json
 
-    ln -s ${tree} $out/tree
-    ln -s ${treeSource} $out/src
-    echo '${localConfig}' > $out/nixpkgs/config.json
-  ''
-)
+      # The output path is known before building, so the page and the docs can
+        # name the very store path they are served out of (a benign
+        # self-reference, same as trynix and the multiverse).
+        substituteInPlace $out/js/app.js --replace-fail "__STORE_PATH__" "$out"
+        for f in $out/docs/*.html; do
+          substituteInPlace "$f" --replace-fail "__STORE_PATH__" "$out"
+        done
+    ''
+    + pkgs.lib.optionalString (tree != null) ''
+
+      ln -s ${tree} $out/tree
+      ln -s ${treeSource} $out/src
+      echo '${localConfig}' > $out/nixpkgs/config.json
+    ''
+  )

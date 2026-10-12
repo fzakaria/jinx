@@ -27,6 +27,8 @@ const MIB = KIB * KIB;
 const TRYNIX_URL = "https://trynix.dev/";
 const NIXPKGS_GITHUB = "https://github.com/NixOS/nixpkgs/blob";
 const SHOW_TS = "show TypeScript";
+// The compiled module is shown in the playground's editor, read only.
+const EDITORS_URL = "../js/editors.js";
 const HIDE_TS = "hide TypeScript";
 
 const $ = (id) => document.getElementById(id);
@@ -76,6 +78,28 @@ function describeActivity(a) {
 function showActivity(a) {
   const last = a.last === undefined || a.last === "" ? "" : ` · ${a.last}`;
   $("fetch-activity").textContent = `${describeActivity(a)}${last}`;
+}
+
+// A parallel prefetch reports how far it is: the files the attribute
+// needs before the evaluation, which is the part of a run whose length is
+// known in advance.
+function showFetching({ attr, done, total }) {
+  const p = $("fetching");
+  if (done >= total) {
+    p.hidden = true;
+    return;
+  }
+  p.hidden = false;
+  $("fetch-progress").max = total;
+  $("fetch-progress").value = done;
+  const what =
+    attr === null ? "the files every package needs" : `the files ${attr} needs`;
+  $("fetch-label").textContent =
+    `fetching ${what}: ${count(done)} of ${count(total)}`;
+}
+
+function count(n) {
+  return n.toLocaleString("en-US");
 }
 
 // The package set is evaluated once; its time stays on screen, and each
@@ -170,28 +194,45 @@ function showResult(r) {
   setStatus(`done in ${formatMillis(r.millis)}`);
 }
 
+let tsEditor = null;
+let tsShown = "";
+
 async function toggleTypescript(ev) {
   ev.preventDefault();
-  const pre = $("typescript");
+  const box = $("typescript");
   const toggle = $("ts-toggle");
-  if (!pre.hidden) {
-    pre.hidden = true;
+  if (!box.hidden) {
+    box.hidden = true;
     toggle.textContent = SHOW_TS;
     return;
   }
-  if (pre.textContent === "") {
+  const url = toggle.dataset.url;
+  if (tsShown !== url) {
     toggle.textContent = "fetching…";
+    let text;
     try {
-      const res = await fetch(toggle.dataset.url);
+      const res = await fetch(url);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
-      pre.textContent = await res.text();
+      text = await res.text();
     } catch (e) {
-      pre.textContent = `could not fetch ${toggle.dataset.url}: ${e.message}`;
+      text = `// could not fetch ${url}: ${e.message}`;
     }
+    box.hidden = false;
+    if (tsEditor === null) {
+      const { createEditor } = await import(EDITORS_URL);
+      tsEditor = await createEditor(box, {
+        language: "typescript",
+        readOnly: true,
+        onChange: () => {},
+        uri: "file:///tree/module.ts",
+      });
+    }
+    tsEditor.setValue(text);
+    tsShown = url;
   }
-  pre.hidden = false;
+  box.hidden = false;
   toggle.textContent = HIDE_TS;
 }
 
@@ -330,6 +371,9 @@ function onMessage(ev) {
       break;
     case "set":
       showSetTime(msg.millis);
+      break;
+    case "fetching":
+      showFetching(msg);
       break;
     case "prefetch":
       prefetch(msg.urls);

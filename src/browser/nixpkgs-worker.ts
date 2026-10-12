@@ -19,6 +19,7 @@
 //   { type: "ready", names, evaluated, millis, modulesLoaded, filesFetched, bytesFetched }
 //   { type: "set", millis }    the package set was evaluated (once, on first use)
 //   { type: "prefetch", urls } files the evaluation will read next
+//   { type: "fetching", attr, done, total }  progress of a parallel prefetch
 //   { type: "result", attr, name, drvPath, outPath, outputs, position, ... }
 //   { type: "error", attr?, error }
 
@@ -155,6 +156,7 @@ async function prefetchAttr(attr: string): Promise<void> {
       ...files.src.map((p) => `${SRC_ROOT}/${p}`),
     ],
     PREFETCH_CONCURRENCY,
+    (done, total) => postMessage({ type: "fetching", attr, done, total }),
   );
 }
 
@@ -245,7 +247,9 @@ async function prefetchHot(url: string): Promise<void> {
     ...hot.tree.map((p) => `${TREE_ROOT}/${p}`),
     ...hot.src.map((p) => `${SRC_ROOT}/${p}`),
   ];
-  await prefetch(paths, PREFETCH_CONCURRENCY);
+  await prefetch(paths, PREFETCH_CONCURRENCY, (done, total) =>
+    postMessage({ type: "fetching", attr: null, done, total }),
+  );
 }
 
 async function init(msg: InitMessage): Promise<void> {

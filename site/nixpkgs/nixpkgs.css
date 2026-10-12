@@ -116,3 +116,21 @@ body {
   color: var(--error);
   white-space: pre-wrap;
 }
+
+/* The prefetch progress: a full-width bar under the status line. */
+#fetching {
+  margin: 0.25rem 0 0;
+  font-size: 13px;
+}
+#fetch-progress {
+  width: 100%;
+  height: 0.5rem;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+/* The compiled module, in the playground's read-only editor. */
+#typescript.editor {
+  height: 28rem;
+  margin-top: 0.75rem;
+}

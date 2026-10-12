@@ -95,18 +95,28 @@ export type { FetchResponse };
 export async function prefetch(
   paths: readonly string[],
   concurrency: number,
+  onProgress?: (done: number, total: number) => void,
 ): Promise<void> {
   const queue = paths.filter((p) => !contents.has(keyOf(p)));
   let next = 0;
+  let done = 0;
+  const step = (): void => {
+    done++;
+    if (onProgress !== undefined) {
+      onProgress(done, queue.length);
+    }
+  };
   const worker = async (): Promise<void> => {
     while (next < queue.length) {
       const p = queue[next++]!;
       const loc = locate(p, FollowSymlinks.Yes);
       if (loc === null || isDir(loc.entry)) {
+        step();
         continue;
       }
       // A blocking read may have fetched the file since the queue was made.
       if (contents.has(loc.mount.path + "/" + loc.rel.join("/"))) {
+        step();
         continue;
       }
       try {
@@ -114,6 +124,7 @@ export async function prefetch(
           fileUrl(loc.mount, loc.rel, loc.entry),
         )) as unknown as FetchResponse;
         if (!res.ok) {
+          step();
           continue;
         }
         const bytes = new Uint8Array(await res.arrayBuffer());
@@ -124,8 +135,9 @@ export async function prefetch(
           fetchListener(p, bytes.byteLength);
         }
       } catch {
-        continue;
+        // The read that needs the file fetches it then and reports.
       }
+      step();
     }
   };
   await Promise.all(Array.from({ length: concurrency }, worker));

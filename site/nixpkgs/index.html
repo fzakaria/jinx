@@ -85,6 +85,10 @@
     <p id="activity" class="muted" aria-live="polite">
       <span id="set-time"></span><span id="fetch-activity"></span>
     </p>
+    <p id="fetching" hidden>
+      <progress id="fetch-progress" max="1" value="0"></progress>
+      <span id="fetch-label" class="muted"></span>
+    </p>
 
     <main>
       <section class="card" id="result-card" hidden>
@@ -106,7 +110,7 @@
           <a id="trynix-link" href="#" target="_blank" rel="noopener">boot in trynix</a>
           <a id="ts-toggle" href="#">show TypeScript</a>
         </p>
-        <pre id="typescript" hidden></pre>
+        <div id="typescript" class="editor" hidden></div>
       </section>
 
       <section class="card" id="error" hidden>
