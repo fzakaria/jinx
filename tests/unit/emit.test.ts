@@ -1,9 +1,9 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { compileToString } from "../../src/compiler/compile.ts";
+import { compileFile, compileToString } from "../../src/compiler/compile.ts";
 import { evaluateFile, setup } from "../../src/cli/evaluate.ts";
 import { printValue } from "../../src/runtime/print.ts";
 import { NixError } from "../../src/runtime/value.ts";
@@ -501,4 +501,43 @@ test("undefined variable is a compile error", () => {
     (e: unknown) =>
       e instanceof Error && e.message === `${file}:2:3: undefined variable 'b'`,
   );
+});
+
+// A literal relative import names its compiled module in a type, so an
+// editor can follow the edge; a computed import and a path outside the
+// tree stay untyped. Tested by compiling a small tree and reading the
+// module back.
+test("literal imports carry their module in a type", () => {
+  const tree = join(ROOT, "tree");
+  const src = join(tree, "src");
+  const out = join(tree, "out");
+  mkdirSync(join(src, "sub"), { recursive: true });
+  writeFileSync(join(src, "lib.nix"), "1");
+  writeFileSync(join(src, "sub", "default.nix"), "2");
+  writeFileSync(
+    join(src, "default.nix"),
+    [
+      "{ a = import ./lib.nix;",
+      "  b = import ./sub;",
+      '  c = import (./. + "/lib.nix");',
+      "  d = import ./missing.nix;",
+      "  e = import ../outside.nix;",
+      "  f = import ./lib.nix { }; }",
+    ].join("\n"),
+  );
+  compileFile({ srcRoot: src, outRoot: out }, join(src, "default.nix"));
+  const ts = readFileSync(join(out, "default.ts"), "utf8");
+  assert.match(
+    ts,
+    /"\.\/lib\.nix"\)\) as nix\.Imported<typeof import\("\.\/lib\.ts"\)>/,
+  );
+  assert.match(
+    ts,
+    /"\.\/sub"\)\) as nix\.Imported<typeof import\("\.\/sub\/default\.ts"\)>/,
+  );
+  assert.match(
+    ts,
+    /nix\.app\(nix\.builtins\.import\(nix\.path\(here, "\.\/lib\.nix"\)\) as nix\.Imported<typeof import\("\.\/lib\.ts"\)>, /,
+  );
+  assert.equal((ts.match(/as nix\.Imported/g) ?? []).length, 3);
 });

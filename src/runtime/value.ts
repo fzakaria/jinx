@@ -30,6 +30,12 @@ export type Value =
 
 export type Lazy = Value | Thunk;
 
+// What `import ./x.nix` evaluates to, annotated in the compiled code with
+// the module it loads (`Imported<typeof import("./x.ts")>`). The type
+// parameter exists for the editor's go-to-definition and nothing else:
+// the value is whatever the module's default export forces to.
+export type Imported<_Module> = Value;
+
 export type List = readonly Lazy[];
 
 // Attribute sets are plain objects, or a Layered set when they came from

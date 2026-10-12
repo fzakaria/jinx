@@ -29,6 +29,7 @@ import { encodeSourceMap, extractMappings, marker } from "./sourcemap.ts";
 // The module-level table of attribute positions; a name no mangled Nix
 // identifier can take, since a `$` only ever follows a character.
 const POS_TABLE = "$pos";
+const IMPORT = "import";
 
 export interface EmitOptions {
   // The Nix file being compiled, absolute.
@@ -40,6 +41,11 @@ export interface EmitOptions {
     readonly url: string;
     readonly sourceRelative: string;
   };
+  // The compiled module a literal relative import names, as a specifier
+  // relative to this module, or null when the import leaves the tree.
+  // With it, `import ./x.nix` carries `typeof import("./x.ts")` in a
+  // type, which an editor follows and the runtime strips.
+  readonly importTarget?: (relativeNixPath: string) => string | null;
 }
 
 export interface Emitted {
@@ -815,7 +821,11 @@ class Emitter {
         const direct = args
           .slice(0, arity)
           .map((a) => this.lazy(a, scope, depth + 1));
-        const callee = `${builtinRef(builtin)}(${direct.join(", ")})`;
+        const callee = this.typedImport(
+          builtin,
+          args[0]!,
+          `${builtinRef(builtin)}(${direct.join(", ")})`,
+        );
         if (args.length === arity) {
           return callee;
         }
@@ -828,6 +838,26 @@ class Emitter {
     const fn = this.operand(head, scope, depth);
     const rendered = args.map((a) => this.lazy(a, scope, depth + 1));
     return `nix.app(${fn}, ${rendered.join(", ")})`;
+  }
+
+  // `import ./x.nix` with a literal relative path, applied to further
+  // arguments or not: the call, annotated with the module it loads so an
+  // editor can follow the edge. Any other builtin call is returned as is.
+  private typedImport(builtin: string, arg: Expr, callee: string): string {
+    if (builtin !== IMPORT || this.opts.importTarget === undefined) {
+      return callee;
+    }
+    if (arg.kind !== "path" || arg.anchor !== "relative") {
+      return callee;
+    }
+    if (!arg.parts.every((p) => typeof p === "string")) {
+      return callee;
+    }
+    const target = this.opts.importTarget(arg.parts.join(""));
+    if (target === null) {
+      return callee;
+    }
+    return `${callee} as nix.Imported<typeof import(${JSON.stringify(target)})>`;
   }
 
   // The builtin a call head denotes statically: a global like `map`, or

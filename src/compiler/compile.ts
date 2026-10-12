@@ -120,6 +120,35 @@ export function outputPathFor(opts: TreeOptions, nixFile: string): string {
   return join(resolve(opts.outRoot), rel.replace(/\.nix$/, "") + ".ts");
 }
 
+// The module a literal import from `dir` loads, as a specifier relative
+// to the importing module. The output tree mirrors the source tree, so
+// the specifier is the Nix path with `.nix` replaced and a directory
+// pointing at its default.nix. Null when the target is outside the tree
+// or does not exist, since the runtime would fail there anyway.
+export function importTarget(
+  opts: TreeOptions,
+  dir: string,
+  rel: string,
+): string | null {
+  const target = resolve(dir, rel);
+  if (relative(resolve(opts.srcRoot), target).startsWith("..")) {
+    return null;
+  }
+  let nixFile = target;
+  if (existsSync(target) && statSync(target).isDirectory()) {
+    nixFile = join(target, DEFAULT_NIX);
+  }
+  if (!nixFile.endsWith(NIX_SUFFIX) || !existsSync(nixFile)) {
+    return null;
+  }
+  const spec = relative(dir, nixFile.slice(0, -NIX_SUFFIX.length) + TS_SUFFIX);
+  return spec.startsWith(".") ? spec : "./" + spec;
+}
+
+const DEFAULT_NIX = "default.nix";
+const NIX_SUFFIX = ".nix";
+const TS_SUFFIX = ".ts";
+
 // Compile one file into its place in the tree. Returns the output path.
 export function compileFile(opts: TreeOptions, nixFile: string): string {
   const file = resolve(nixFile);
@@ -142,6 +171,7 @@ export function compileFile(opts: TreeOptions, nixFile: string): string {
       url: `${base}.map`,
       sourceRelative: relative(dirname(out), file),
     },
+    importTarget: (rel) => importTarget(opts, dirname(file), rel),
   });
   // Written whole and renamed into place: several workers may compile the
   // same module at once, and a reader must never see a partial file.

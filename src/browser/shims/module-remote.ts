@@ -14,6 +14,9 @@ const FILE_URL_PREFIX = "file://";
 const RUNTIME_IMPORT = /^import \* as nix from "[^"]*";\s*$/m;
 const DEFAULT_EXPORT = /^export default /m;
 const IMPORT_META = /\bimport\.meta\b/g;
+// The type a literal import carries for editors; `new Function` takes
+// JavaScript, so the cast goes.
+const IMPORT_TYPE = / as nix\.Imported<typeof import\("[^"]*"\)>/g;
 const IMPORT_META_PARAM = "importMeta";
 const RUNTIME_PARAM = "nix";
 
@@ -131,7 +134,8 @@ function load(p: string): { default: unknown } {
   const body = text
     .replace(RUNTIME_IMPORT, "")
     .replace(DEFAULT_EXPORT, "return ")
-    .replace(IMPORT_META, IMPORT_META_PARAM);
+    .replace(IMPORT_META, IMPORT_META_PARAM)
+    .replace(IMPORT_TYPE, "");
   // The sourceURL names the module in stack traces and in DevTools.
   const fn = new Function(
     RUNTIME_PARAM,
