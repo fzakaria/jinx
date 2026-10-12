@@ -3,6 +3,8 @@
 // Nix's eval.cc, named after what the Nix syntax looked like.
 
 import {
+  type PlainAttrs,
+  updateAttrs,
   type Attrs,
   type Formals,
   type Lambda,
@@ -32,6 +34,9 @@ import {
   strContext,
   strValue,
   typeOf,
+  getAttr,
+  hasAttr,
+  attrKeys,
 } from "./value.ts";
 import { addInt, divInt, formatFloatFixed, mulInt, subInt } from "./numbers.ts";
 import { copyPathToStore } from "./store.ts";
@@ -110,10 +115,10 @@ export function sel(subject: Lazy, ...path: string[]): Value {
     if (!isAttrs(v)) {
       throw expected(v, "a set");
     }
-    if (!hasOwn(v, name)) {
+    if (!hasAttr(v, name)) {
       throw new NixError(`attribute '${name}' missing`);
     }
-    v = force(v[name] as Lazy);
+    v = force(getAttr(v, name) as Lazy);
   }
   return v;
 }
@@ -126,10 +131,10 @@ export function selOr(
 ): Value {
   let v = force(subject);
   for (const name of path) {
-    if (!isAttrs(v) || !hasOwn(v, name)) {
+    if (!isAttrs(v) || !hasAttr(v, name)) {
       return fallback();
     }
-    v = force(v[name] as Lazy);
+    v = force(getAttr(v, name) as Lazy);
   }
   return v;
 }
@@ -140,11 +145,11 @@ export function has(subject: Lazy, ...path: string[]): boolean {
   let v = force(subject);
   for (let i = 0; i < path.length; i++) {
     const name = path[i]!;
-    if (!isAttrs(v) || !hasOwn(v, name)) {
+    if (!isAttrs(v) || !hasAttr(v, name)) {
       return false;
     }
     if (i + 1 < path.length) {
-      v = force(v[name] as Lazy);
+      v = force(getAttr(v, name) as Lazy);
     }
   }
   return true;
@@ -154,10 +159,10 @@ export function has(subject: Lazy, ...path: string[]): boolean {
 // the thunk is shared rather than forced.
 export function attr(subject: Lazy, name: string): Lazy {
   const v = forceAttrs(subject);
-  if (!hasOwn(v, name)) {
+  if (!hasAttr(v, name)) {
     throw new NixError(`attribute '${name}' missing`);
   }
-  return v[name] as Lazy;
+  return getAttr(v, name) as Lazy;
 }
 
 // A dynamic attribute name `${e}`: a string without context.
@@ -168,7 +173,7 @@ export function key(v: Lazy): string {
 // An attribute set with dynamic attributes added after the static ones. A
 // null name skips the attribute; a name already present is an error.
 export function attrsDyn(
-  base: Attrs,
+  base: PlainAttrs,
   dynamics: readonly (readonly [Lazy, Lazy])[],
 ): Attrs {
   for (const [nameValue, value] of dynamics) {
@@ -177,7 +182,7 @@ export function attrsDyn(
       continue;
     }
     const name = key(n);
-    if (hasOwn(base, name)) {
+    if (hasAttr(base, name)) {
       throw new NixError(`dynamic attribute '${name}' already defined`);
     }
     base[name] = value;
@@ -201,8 +206,8 @@ export function lambda(fn: (arg: Lazy) => Value, formals?: Formals): Lambda {
 export function formals(arg: Lazy, spec: Formals): Attrs {
   const a = forceAttrs(arg);
   if (!spec.ellipsis) {
-    for (const name in a) {
-      if (!hasOwn(spec.args, name)) {
+    for (const name of attrKeys(a)) {
+      if (!hasAttr(spec.args, name)) {
         throw new NixError(
           `function called with unexpected argument '${name}'`,
         );
@@ -213,15 +218,15 @@ export function formals(arg: Lazy, spec: Formals): Attrs {
 }
 
 export function arg(attrs: Attrs, name: string): Lazy {
-  if (!hasOwn(attrs, name)) {
+  if (!hasAttr(attrs, name)) {
     throw new NixError(`function called without required argument '${name}'`);
   }
-  return attrs[name] as Lazy;
+  return getAttr(attrs, name) as Lazy;
 }
 
 export function argOr(attrs: Attrs, name: string, fallback: () => Value): Lazy {
-  if (hasOwn(attrs, name)) {
-    return attrs[name] as Lazy;
+  if (hasAttr(attrs, name)) {
+    return getAttr(attrs, name) as Lazy;
   }
   return new Thunk(fallback);
 }
@@ -253,8 +258,8 @@ export function app(fn: Lazy, ...args: Lazy[]): Value {
       i++;
       continue;
     }
-    if (isAttrs(f) && hasOwn(f, "__functor")) {
-      const functor = force(f["__functor"] as Lazy);
+    if (isAttrs(f) && hasAttr(f, "__functor")) {
+      const functor = force(getAttr(f, "__functor") as Lazy);
       f = app(functor, f);
       continue;
     }
@@ -324,8 +329,8 @@ export function withScope(attrs: Lazy, outer: WithScope | null): WithScope {
 export function lookup(scope: WithScope | null, name: string): Lazy {
   for (let s = scope; s !== null; s = s.outer) {
     const a = forceAttrs(s.attrs);
-    if (hasOwn(a, name)) {
-      return a[name] as Lazy;
+    if (hasAttr(a, name)) {
+      return getAttr(a, name) as Lazy;
     }
   }
   throw new NixError(`undefined variable '${name}'`);
@@ -364,12 +369,12 @@ export function coerceToString(v: Lazy, opts: CoerceOptions): Str {
     return opts.copyToStore ? copyPathToStore(x) : x.path;
   }
   if (isAttrs(x)) {
-    if (hasOwn(x, "__toString")) {
-      const s = app(x["__toString"] as Lazy, x);
+    if (hasAttr(x, "__toString")) {
+      const s = app(getAttr(x, "__toString") as Lazy, x);
       return coerceToString(s, opts);
     }
-    if (hasOwn(x, "outPath")) {
-      return coerceToString(x["outPath"] as Lazy, opts);
+    if (hasAttr(x, "outPath")) {
+      return coerceToString(getAttr(x, "outPath") as Lazy, opts);
     }
     throw new NixError("cannot coerce a set to a string: { ... }");
   }
@@ -588,15 +593,15 @@ export function eq(a: Lazy, b: Lazy): boolean {
   }
   if (isAttrs(x) && isAttrs(y)) {
     if (isDerivation(x) && isDerivation(y)) {
-      return eq(x["outPath"] as Lazy, y["outPath"] as Lazy);
+      return eq(getAttr(x, "outPath") as Lazy, getAttr(y, "outPath") as Lazy);
     }
-    const kx = Object.keys(x);
-    const ky = Object.keys(y);
+    const kx = attrKeys(x);
+    const ky = attrKeys(y);
     if (kx.length !== ky.length) {
       return false;
     }
     for (const k of kx) {
-      if (!hasOwn(y, k) || !eq(x[k] as Lazy, y[k] as Lazy)) {
+      if (!hasAttr(y, k) || !eq(getAttr(x, k) as Lazy, getAttr(y, k) as Lazy)) {
         return false;
       }
     }
@@ -606,10 +611,10 @@ export function eq(a: Lazy, b: Lazy): boolean {
 }
 
 function isDerivation(a: Attrs): boolean {
-  if (!hasOwn(a, "type") || !hasOwn(a, "outPath")) {
+  if (!hasAttr(a, "type") || !hasAttr(a, "outPath")) {
     return false;
   }
-  const t = force(a["type"] as Lazy);
+  const t = force(getAttr(a, "type") as Lazy);
   return t === "derivation";
 }
 
@@ -675,20 +680,5 @@ export function concat(a: Lazy, b: Lazy): List {
 
 // `a // b`: right-biased, shallow. Thunks are shared, never forced.
 export function update(a: Lazy, b: Lazy): Attrs {
-  const x = forceAttrs(a);
-  const y = forceAttrs(b);
-  if (isEmptyAttrs(y)) {
-    return x;
-  }
-  if (isEmptyAttrs(x)) {
-    return y;
-  }
-  return { ...x, ...y };
-}
-
-export function isEmptyAttrs(a: Attrs): boolean {
-  for (const _ in a) {
-    return false;
-  }
-  return true;
+  return updateAttrs(forceAttrs(a), forceAttrs(b));
 }

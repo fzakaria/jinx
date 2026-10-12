@@ -2,7 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { fromToml } from "../../src/runtime/toml.ts";
-import { NixError } from "../../src/runtime/value.ts";
+import {
+  NixError,
+  hasAttr,
+  attrKeys,
+  toPlain as plainOf,
+} from "../../src/runtime/value.ts";
 import type { Attrs, Lazy } from "../../src/runtime/value.ts";
 
 // Set JINX_NIX_DIFF=1 to run the test that shells out to nix-instantiate.
@@ -930,8 +935,8 @@ function toPlain(v: Lazy): unknown {
   }
   if (typeof v === "object" && v !== null) {
     const out: Record<string, unknown> = {};
-    for (const key of Object.keys(v)) {
-      out[key] = toPlain((v as Attrs)[key] as Lazy);
+    for (const key of attrKeys(v as Attrs)) {
+      out[key] = toPlain(plainOf(v as Attrs)[key] as Lazy);
     }
     return out;
   }

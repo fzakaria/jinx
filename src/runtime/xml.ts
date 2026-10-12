@@ -20,6 +20,8 @@ import {
   strContext,
   strValue,
   typeOf,
+  getAttr,
+  hasAttr,
 } from "./value.ts";
 import type { Attrs, Lambda, Lazy, Path, Str, Value } from "./value.ts";
 import { formatFloatG } from "./numbers.ts";
@@ -192,7 +194,7 @@ function printValue(lazy: Lazy, state: PrintState): void {
 function printAttrs(attrs: Attrs, state: PrintState): void {
   for (const name of sortedNames(attrs)) {
     state.writer.open("attr", [["name", name]]);
-    printValue(attrs[name] as Lazy, state);
+    printValue(getAttr(attrs, name) as Lazy, state);
     state.writer.close();
   }
 }
@@ -203,7 +205,7 @@ function isDerivation(attrs: Attrs): boolean {
   if (!Object.hasOwn(attrs, TYPE_ATTR)) {
     return false;
   }
-  const type = force(attrs[TYPE_ATTR] as Lazy);
+  const type = force(getAttr(attrs, TYPE_ATTR) as Lazy);
   return isString(type) && strValue(type) === DERIVATION_TYPE;
 }
 
@@ -212,7 +214,7 @@ function stringAttr(attrs: Attrs, name: string): string | null {
   if (!Object.hasOwn(attrs, name)) {
     return null;
   }
-  const v = force(attrs[name] as Lazy);
+  const v = force(getAttr(attrs, name) as Lazy);
   return isString(v) ? strValue(v) : null;
 }
 

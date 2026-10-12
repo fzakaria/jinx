@@ -25,6 +25,9 @@ import {
   strContext,
   strValue,
   typeOf,
+  getAttr,
+  hasAttr,
+  type PlainAttrs,
 } from "./value.ts";
 import type { Attrs, Lazy, Path, Str, Value } from "./value.ts";
 import {
@@ -167,7 +170,7 @@ function serialiseAttrs(attrs: Attrs, state: SerialiseState): void {
   // An attrset with `outPath` (a derivation, typically) serialises as
   // that attribute's value, whatever its type.
   if (Object.hasOwn(attrs, OUT_PATH_ATTR)) {
-    serialise(attrs[OUT_PATH_ATTR] as Lazy, state);
+    serialise(getAttr(attrs, OUT_PATH_ATTR) as Lazy, state);
     return;
   }
 
@@ -180,7 +183,7 @@ function serialiseAttrs(attrs: Attrs, state: SerialiseState): void {
       state.parts.push(",");
     }
     state.parts.push(jsonQuote(name), ":");
-    serialise(attrs[name] as Lazy, state);
+    serialise(getAttr(attrs, name) as Lazy, state);
   }
   state.parts.push("}");
 }
@@ -348,7 +351,7 @@ class JsonParser {
   private parseObject(): Attrs {
     // Skip the opening brace.
     this.pos++;
-    const attrs: Attrs = {};
+    const attrs: PlainAttrs = {};
     this.skipWhitespace();
     if (this.peek() === "}") {
       this.pos++;

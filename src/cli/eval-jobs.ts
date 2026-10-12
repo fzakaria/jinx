@@ -33,6 +33,8 @@ import {
   isString,
   sortedNames,
   strValue,
+  getAttr,
+  hasAttr,
 } from "../runtime/value.ts";
 import { forceBool } from "../runtime/ops.ts";
 
@@ -170,10 +172,10 @@ function evaluatePath(root: Value, path: string[]): Reply {
   let v: Value = root;
   try {
     for (const name of path) {
-      if (!isAttrs(v) || !hasOwn(v, name)) {
+      if (!isAttrs(v) || !hasAttr(v, name)) {
         return { kind: "skip", path };
       }
-      v = force(v[name] as Lazy);
+      v = force(getAttr(v, name) as Lazy);
     }
   } catch (e) {
     return { kind: "result", path, line: line(path, { error: message(e) }) };
@@ -195,22 +197,22 @@ function evaluatePath(root: Value, path: string[]): Reply {
 }
 
 function isDerivation(a: Attrs): boolean {
-  if (!hasOwn(a, "type")) {
+  if (!hasAttr(a, "type")) {
     return false;
   }
   try {
-    return force(a["type"] as Lazy) === "derivation";
+    return force(getAttr(a, "type") as Lazy) === "derivation";
   } catch {
     return false;
   }
 }
 
 function recurses(a: Attrs): boolean {
-  if (!hasOwn(a, "recurseForDerivations")) {
+  if (!hasAttr(a, "recurseForDerivations")) {
     return false;
   }
   try {
-    return forceBool(a["recurseForDerivations"] as Lazy);
+    return forceBool(getAttr(a, "recurseForDerivations") as Lazy);
   } catch {
     return false;
   }
@@ -218,15 +220,21 @@ function recurses(a: Attrs): boolean {
 
 function describe(d: Attrs): Record<string, unknown> {
   try {
-    const drvPath = str(force(d["drvPath"] as Lazy));
-    const name = hasOwn(d, "name") ? str(force(d["name"] as Lazy)) : "";
-    const system = hasOwn(d, "system") ? str(force(d["system"] as Lazy)) : "";
+    const drvPath = str(force(getAttr(d, "drvPath") as Lazy));
+    const name = hasAttr(d, "name")
+      ? str(force(getAttr(d, "name") as Lazy))
+      : "";
+    const system = hasAttr(d, "system")
+      ? str(force(getAttr(d, "system") as Lazy))
+      : "";
     const outputs: Record<string, string> = {};
-    const outs = hasOwn(d, "outputs") ? force(d["outputs"] as Lazy) : ["out"];
+    const outs = hasAttr(d, "outputs")
+      ? force(getAttr(d, "outputs") as Lazy)
+      : ["out"];
     for (const o of outs as Lazy[]) {
       const on = str(force(o));
-      const ov = force(d[on] as Lazy);
-      outputs[on] = str(force((ov as Attrs)["outPath"] as Lazy));
+      const ov = force(getAttr(d, on) as Lazy);
+      outputs[on] = str(force(getAttr(ov as Attrs, "outPath") as Lazy));
     }
     return { drvPath, name, outputs, system };
   } catch (e) {

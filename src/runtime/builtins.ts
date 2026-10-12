@@ -95,6 +95,12 @@ import {
   strContext,
   strValue,
   typeOf,
+  getAttr,
+  hasAttr,
+  attrKeys,
+  attrCount,
+  isLargeAttrs,
+  type PlainAttrs,
 } from "./value.ts";
 import { toXml } from "./xml.ts";
 import { fromToml } from "./toml.ts";
@@ -200,8 +206,8 @@ function deepForce(v: Lazy, seen: Set<object>): void {
       return;
     }
     seen.add(x);
-    for (const k in x) {
-      deepForce(x[k] as Lazy, seen);
+    for (const k of attrKeys(x)) {
+      deepForce(getAttr(x, k) as Lazy, seen);
     }
   }
 }
@@ -314,7 +320,7 @@ function parseDrvName(s: string): { name: string; version: string } {
 
 // ---- the table --------------------------------------------------------------
 
-const b: Attrs = {};
+const b: PlainAttrs = {};
 
 function def(
   name: string,
@@ -406,7 +412,10 @@ function printForTrace(v: Value): string {
       return `[ ${(v as List).map((e) => printForTrace(force(e))).join(" ")} ]`;
     case "set":
       return `{ ${sortedNames(v as Attrs)
-        .map((k) => `${k} = ${printForTrace(force((v as Attrs)[k] as Lazy))};`)
+        .map(
+          (k) =>
+            `${k} = ${printForTrace(force(getAttr(v as Attrs, k) as Lazy))};`,
+        )
         .join(" ")} }`;
     case "lambda":
       return "<LAMBDA>";
@@ -563,8 +572,8 @@ def("hashString", 2, (algo, s) => {
 def("convertHash", 1, (argsArg) => {
   const args = forceAttrs(argsArg);
   const hash = forceString(attr(args, "hash"));
-  const algoName = hasOwn(args, "hashAlgo")
-    ? forceString(args["hashAlgo"] as Lazy)
+  const algoName = hasAttr(args, "hashAlgo")
+    ? forceString(getAttr(args, "hashAlgo") as Lazy)
     : null;
   const to = forceString(attr(args, "toHashFormat"));
   if (algoName !== null && !isHashAlgo(algoName)) {
@@ -709,7 +718,7 @@ def("partition", 2, (f, l) => {
   return { right, wrong };
 });
 def("groupBy", 2, (f, l) => {
-  const out: Attrs = {};
+  const out: PlainAttrs = {};
   for (const e of forceList(l)) {
     const k = forceStringNoCtx(app(f, e));
     const bucket = out[k];
@@ -769,28 +778,28 @@ import { eq as eqImpl } from "./ops.ts";
 def("attrNames", 1, (a) => sortedNames(forceAttrs(a)));
 def("attrValues", 1, (a) => {
   const s = forceAttrs(a);
-  return sortedNames(s).map((k) => s[k] as Lazy);
+  return sortedNames(s).map((k) => getAttr(s, k) as Lazy);
 });
 def("getAttr", 2, (name, a) => force(attr(a, forceStringNoCtx(name))));
-def("hasAttr", 2, (name, a) => hasOwn(forceAttrs(a), forceStringNoCtx(name)));
+def("hasAttr", 2, (name, a) => hasAttr(forceAttrs(a), forceStringNoCtx(name)));
 def("removeAttrs", 2, (a, names) => {
   const s = forceAttrs(a);
   const drop = new Set(forceList(names).map((n) => forceStringNoCtx(n)));
-  const out: Attrs = {};
-  for (const k in s) {
+  const out: PlainAttrs = {};
+  for (const k of attrKeys(s)) {
     if (!drop.has(k)) {
-      out[k] = s[k] as Lazy;
+      out[k] = getAttr(s, k) as Lazy;
     }
   }
   return out;
 });
 def("listToAttrs", 1, (l) => {
-  const out: Attrs = {};
+  const out: PlainAttrs = {};
   for (const e of forceList(l)) {
     const item = forceAttrs(e);
     const name = forceStringNoCtx(attr(item, "name"));
     // The first occurrence wins.
-    if (!hasOwn(out, name)) {
+    if (!hasAttr(out, name)) {
       out[name] = attr(item, "value");
     }
   }
@@ -801,73 +810,61 @@ def("listToAttrs", 1, (l) => {
 def("intersectAttrs", 2, (a, c) => {
   const x = forceAttrs(a);
   const y = forceAttrs(c);
-  const out: Attrs = {};
-  // Count the left set (a function's formals: small) and only check
-  // whether the right one is bigger than that.
-  const nx = countKeys(x, Infinity);
-  if (countKeys(y, nx + 1) > nx) {
-    for (const k in x) {
-      if (hasOwn(y, k)) {
-        out[k] = y[k] as Lazy;
+  const out: PlainAttrs = {};
+  // The left side is the function's formals and small; the right side is
+  // large or layered, and counting a layered set would flatten it.
+  if (isLargeAttrs(y) || attrCount(x) < attrCount(y)) {
+    for (const k of attrKeys(x)) {
+      if (hasAttr(y, k)) {
+        out[k] = getAttr(y, k) as Lazy;
       }
     }
     return out;
   }
-  for (const k in y) {
-    if (hasOwn(x, k)) {
-      out[k] = y[k] as Lazy;
+  for (const k of attrKeys(y)) {
+    if (hasAttr(x, k)) {
+      out[k] = getAttr(y, k) as Lazy;
     }
   }
   return out;
 });
 
-// The number of attributes, stopping at `limit`, without allocating a
-// key array.
-function countKeys(a: Attrs, limit: number): number {
-  let n = 0;
-  for (const _ in a) {
-    if (++n >= limit) {
-      return n;
-    }
-  }
-  return n;
-}
 def("catAttrs", 2, (name, l) => {
   const n = forceStringNoCtx(name);
   const out: Lazy[] = [];
   for (const e of forceList(l)) {
     const s = forceAttrs(e);
-    if (hasOwn(s, n)) {
-      out.push(s[n] as Lazy);
+    if (hasAttr(s, n)) {
+      out.push(getAttr(s, n) as Lazy);
     }
   }
   return out;
 });
 def("mapAttrs", 2, (f, a) => {
   const s = forceAttrs(a);
-  const out: Attrs = {};
-  for (const k in s) {
-    const v = s[k] as Lazy;
+  const out: PlainAttrs = {};
+  for (const k of attrKeys(s)) {
+    const v = getAttr(s, k) as Lazy;
     out[k] = new Thunk(() => app(f, k, v));
   }
   return out;
 });
 def("zipAttrsWith", 2, (f, l) => {
-  const lists: Attrs = {};
+  const lists: PlainAttrs = {};
   for (const e of forceList(l)) {
     const s = forceAttrs(e);
-    for (const k in s) {
+    for (const k of attrKeys(s)) {
       const bucket = lists[k];
       if (bucket === undefined) {
-        lists[k] = [s[k] as Lazy];
+        lists[k] = [getAttr(s, k) as Lazy];
       } else {
-        (bucket as Lazy[]).push(s[k] as Lazy);
+        (bucket as Lazy[]).push(getAttr(s, k) as Lazy);
       }
     }
   }
-  const out: Attrs = {};
-  for (const k in lists) {
-    const vs = lists[k] as Lazy;
+  const out: PlainAttrs = {};
+  for (const k of attrKeys(lists)) {
+    const vs = getAttr(lists, k) as Lazy;
     out[k] = new Thunk(() => app(f, k, vs));
   }
   return out;
@@ -884,7 +881,7 @@ def("functionArgs", 1, (f) => {
   if (formals === undefined) {
     return {};
   }
-  const out: Attrs = {};
+  const out: PlainAttrs = {};
   for (const k in formals.args) {
     out[k] = formals.args[k] as boolean;
   }
@@ -901,7 +898,7 @@ def("unsafeGetAttrPos", 2, (name, a) => {
 // JSON / XML
 def("toJSON", 1, (v) => {
   const { json, context } = toJson(v, {
-    applyToString: (a) => forceStr(app(a["__toString"] as Lazy, a)),
+    applyToString: (a) => forceStr(app(getAttr(a, "__toString") as Lazy, a)),
     copyPathToStore: (p) => copyPathToStore(p),
   });
   return mkString(json, context);
@@ -949,7 +946,7 @@ def("addDrvOutputDependencies", 1, (s) => {
 });
 def("getContext", 1, (s) => {
   const ctx = strContext(forceStr(s));
-  const out: Attrs = {};
+  const out: PlainAttrs = {};
   if (ctx === null) {
     return out;
   }
@@ -978,7 +975,7 @@ def("getContext", 1, (s) => {
     }
   }
   for (const [p, info] of byPath) {
-    const a: Attrs = {};
+    const a: PlainAttrs = {};
     if (info.path) {
       a["path"] = true;
     }
@@ -1000,11 +997,14 @@ def("appendContext", 2, (s, ctxArg) => {
     if (!isStorePath(p)) {
       throw new NixError(`context key '${p}' is not a store path`);
     }
-    const spec = forceAttrs(info[p] as Lazy);
-    if (hasOwn(spec, "path") && forceBool(spec["path"] as Lazy)) {
+    const spec = forceAttrs(getAttr(info, p) as Lazy);
+    if (hasAttr(spec, "path") && forceBool(getAttr(spec, "path") as Lazy)) {
       ctx.add(ctxOpaque(p));
     }
-    if (hasOwn(spec, "allOutputs") && forceBool(spec["allOutputs"] as Lazy)) {
+    if (
+      hasAttr(spec, "allOutputs") &&
+      forceBool(getAttr(spec, "allOutputs") as Lazy)
+    ) {
       if (!p.endsWith(".drv")) {
         throw new NixError(
           `tried to add all-outputs context of ${p}, which is not a derivation, to a string`,
@@ -1012,13 +1012,13 @@ def("appendContext", 2, (s, ctxArg) => {
       }
       ctx.add(ctxDrvDeep(p));
     }
-    if (hasOwn(spec, "outputs")) {
+    if (hasAttr(spec, "outputs")) {
       if (!p.endsWith(".drv")) {
         throw new NixError(
           `tried to add derivation output context of ${p}, which is not a derivation, to a string`,
         );
       }
-      for (const o of forceList(spec["outputs"] as Lazy)) {
+      for (const o of forceList(getAttr(spec, "outputs") as Lazy)) {
         ctx.add(ctxBuilt(forceStringNoCtx(o), p));
       }
     }
@@ -1056,7 +1056,7 @@ def("readFile", 1, (p) => {
 def("readFileType", 1, (p) => fileType(pathOf(p, "a path")));
 def("readDir", 1, (p) => {
   const path = pathOf(p, "a path");
-  const out: Attrs = {};
+  const out: PlainAttrs = {};
   let names: string[];
   try {
     names = readdirSync(path);
@@ -1088,18 +1088,18 @@ def("path", 1, (argsArg) => {
   const args = forceAttrs(argsArg);
   const pv = force(attr(args, "path"));
   const path = pv instanceof Path ? pv : new Path(pathOf(pv, "a path"));
-  const name = hasOwn(args, "name")
-    ? forceStringNoCtx(args["name"] as Lazy)
+  const name = hasAttr(args, "name")
+    ? forceStringNoCtx(getAttr(args, "name") as Lazy)
     : undefined;
-  const filter = hasOwn(args, "filter")
-    ? nixFilter(args["filter"] as Lazy)
+  const filter = hasAttr(args, "filter")
+    ? nixFilter(getAttr(args, "filter") as Lazy)
     : undefined;
-  const recursive = hasOwn(args, "recursive")
-    ? forceBool(args["recursive"] as Lazy)
+  const recursive = hasAttr(args, "recursive")
+    ? forceBool(getAttr(args, "recursive") as Lazy)
     : true;
-  if (hasOwn(args, "sha256")) {
+  if (hasAttr(args, "sha256")) {
     const expectedHash = parseHash(
-      forceStringNoCtx(args["sha256"] as Lazy),
+      forceStringNoCtx(getAttr(args, "sha256") as Lazy),
       "sha256",
     );
     const n = name ?? path.path.replace(/\/+$/, "").split("/").pop()!;
@@ -1179,18 +1179,23 @@ function nixFilter(f: Lazy): PathFilter {
 // libexpr/primops/derivation.nix: the same attributes in the same shape.
 const derivation: Lambda = (drvAttrsArg: Lazy): Value => {
   const drvAttrs = forceAttrs(drvAttrsArg);
-  const outputs = hasOwn(drvAttrs, "outputs")
-    ? forceList(drvAttrs["outputs"] as Lazy).map((o) => forceStringNoCtx(o))
+  const outputs = hasAttr(drvAttrs, "outputs")
+    ? forceList(getAttr(drvAttrs, "outputs") as Lazy).map((o) =>
+        forceStringNoCtx(o),
+      )
     : ["out"];
   const strict = new Thunk(() => derivationStrict(drvAttrs));
   const outputsList: Attrs[] = [];
   const commonAttrs = new Thunk(() => {
-    const byName: Attrs = {};
+    const byName: PlainAttrs = {};
     for (const o of outputsList) {
-      byName[strValue(force(o["name"] as Lazy) as Str)] = o["value"] as Lazy;
+      byName[strValue(force(getAttr(o, "name") as Lazy) as Str)] = getAttr(
+        o,
+        "value",
+      ) as Lazy;
     }
     return update(update(drvAttrs, byName), {
-      all: outputsList.map((o) => o["value"] as Lazy),
+      all: outputsList.map((o) => getAttr(o, "value") as Lazy),
       drvAttrs,
     });
   });
@@ -1210,7 +1215,7 @@ const derivation: Lambda = (drvAttrsArg: Lazy): Value => {
   if (outputsList.length === 0) {
     throw new NixError("list index 0 is out of bounds");
   }
-  return force(outputsList[0]!["value"] as Lazy);
+  return force(getAttr(outputsList[0]!, "value") as Lazy);
 };
 derivation.formals = { args: { outputs: true }, ellipsis: true };
 b["derivation"] = derivation;

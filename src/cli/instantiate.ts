@@ -43,6 +43,8 @@ import {
   isString,
   sortedNames,
   strValue,
+  hasAttr,
+  getAttr,
 } from "../runtime/value.ts";
 import { DEFAULT_CACHE, evaluateFile, setup } from "./evaluate.ts";
 
@@ -175,7 +177,7 @@ function collectDrvPaths(v: Value, out: string[], topLevel: TopLevel): void {
 
   if (isAttrs(v)) {
     if (isDerivation(v)) {
-      const drvPath = force(v["drvPath"]!);
+      const drvPath = force(getAttr(v, "drvPath")!);
       if (!isString(drvPath)) {
         throw new NixError(
           "the 'drvPath' attribute of a derivation must be a string",
@@ -189,14 +191,14 @@ function collectDrvPaths(v: Value, out: string[], topLevel: TopLevel): void {
     if (
       topLevel === NESTED &&
       !(
-        hasOwn(v, "recurseForDerivations") &&
-        forceBool(v["recurseForDerivations"]!)
+        hasAttr(v, "recurseForDerivations") &&
+        forceBool(getAttr(v, "recurseForDerivations")!)
       )
     ) {
       return;
     }
     for (const name of sortedNames(v)) {
-      const child = force(v[name]!);
+      const child = force(getAttr(v, name)!);
       if (!isAttrs(child) && !isList(child)) {
         continue;
       }
@@ -224,10 +226,10 @@ function collectDrvPaths(v: Value, out: string[], topLevel: TopLevel): void {
 }
 
 function isDerivation(a: Attrs): boolean {
-  if (!hasOwn(a, "type")) {
+  if (!hasAttr(a, "type")) {
     return false;
   }
-  const t = force(a["type"]!);
+  const t = force(getAttr(a, "type")!);
   return isString(t) && strValue(t) === DERIVATION_TYPE;
 }
 

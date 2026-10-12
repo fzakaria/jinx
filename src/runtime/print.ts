@@ -16,6 +16,8 @@ import {
   sortedNames,
   strValue,
   typeOf,
+  getAttr,
+  hasAttr,
 } from "./value.ts";
 
 const IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_'-]*$/;
@@ -144,11 +146,11 @@ function print(
       const a = x as Attrs;
       if (
         opts.derivationsAsPaths &&
-        hasOwn(a, "type") &&
-        force(a["type"] as Lazy) === "derivation" &&
-        hasOwn(a, "drvPath")
+        hasAttr(a, "type") &&
+        force(getAttr(a, "type") as Lazy) === "derivation" &&
+        hasAttr(a, "drvPath")
       ) {
-        const p = force(a["drvPath"] as Lazy);
+        const p = force(getAttr(a, "drvPath") as Lazy);
         out.push(
           `«derivation ${typeof p === "string" ? p : strValue(p as Str)}»`,
         );
@@ -167,7 +169,7 @@ function print(
       out.push("{ ");
       for (const n of names) {
         out.push(printAttrName(n), " = ");
-        print(a[n] as Lazy, opts, out, seen);
+        print(getAttr(a, n) as Lazy, opts, out, seen);
         out.push("; ");
       }
       out.push("}");

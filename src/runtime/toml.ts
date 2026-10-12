@@ -18,8 +18,17 @@
 // what toml11 does, checked against Nix 2.34.
 
 import { INT64_MAX, INT64_MIN } from "./numbers.ts";
-import { hasOwn, isAttrs, isList, NixError } from "./value.ts";
-import type { Attrs, Lazy, Value } from "./value.ts";
+import {
+  hasOwn,
+  isAttrs,
+  isList,
+  NixError,
+  hasAttr,
+  toPlain,
+  Layered,
+  type PlainAttrs,
+} from "./value.ts";
+import type { Lazy, Value } from "./value.ts";
 
 const ERROR_PREFIX = "while parsing TOML: ";
 
@@ -119,10 +128,10 @@ type TableKind = (typeof TableKind)[keyof typeof TableKind];
 class Parser {
   private readonly text: string;
   private pos = 0;
-  private readonly root: Attrs = {};
+  private readonly root: PlainAttrs = {};
   // The table the key/value lines currently being read belong to.
-  private current: Attrs;
-  private readonly tableKinds = new WeakMap<Attrs, TableKind>();
+  private current: PlainAttrs;
+  private readonly tableKinds = new WeakMap<PlainAttrs, TableKind>();
   // The arrays created by `[[header]]`; any other array is a value and is
   // closed to later additions.
   private readonly arraysOfTables = new WeakSet<object>();
@@ -133,7 +142,7 @@ class Parser {
     this.tableKinds.set(this.root, TableKind.Header);
   }
 
-  parse(): Attrs {
+  parse(): PlainAttrs {
     if (this.text.startsWith(BOM)) {
       this.pos = BOM.length;
     }
@@ -289,7 +298,7 @@ class Parser {
   }
 
   // `key = value`, stored into `target` following the dotted-key rules.
-  private parseKeyValue(target: Attrs): void {
+  private parseKeyValue(target: PlainAttrs): void {
     const at = this.pos;
     const path = this.parseKeyPath();
     this.skipWhitespace();
@@ -310,7 +319,7 @@ class Parser {
   // Dotted tables or must already be Dotted tables; the final key must be
   // new.
   private insertDotted(
-    target: Attrs,
+    target: PlainAttrs,
     path: readonly string[],
     value: Value,
     at: number,
@@ -322,20 +331,20 @@ class Parser {
     }
 
     const last = path[lastIndex]!;
-    if (hasOwn(table, last)) {
+    if (hasAttr(table, last)) {
       this.error(`key '${path.join(".")}' is already defined`, at);
     }
     setKey(table, last, value);
   }
 
   private descendDotted(
-    table: Attrs,
+    table: PlainAttrs,
     name: string,
     path: readonly string[],
     at: number,
-  ): Attrs {
-    if (!hasOwn(table, name)) {
-      const child: Attrs = {};
+  ): PlainAttrs {
+    if (!hasAttr(table, name)) {
+      const child: PlainAttrs = {};
       this.tableKinds.set(child, TableKind.Dotted);
       setKey(table, name, child);
       return child;
@@ -346,7 +355,7 @@ class Parser {
     // table is closed to everything.
     const existing = storedValue(table, name);
     if (
-      isAttrs(existing) &&
+      isTable(existing) &&
       this.tableKinds.get(existing) === TableKind.Dotted
     ) {
       return existing;
@@ -386,13 +395,13 @@ class Parser {
   // Walk one step of a header path. Missing tables are created as
   // Implicit tables; an array of tables stands for its last element.
   private descendHeader(
-    table: Attrs,
+    table: PlainAttrs,
     name: string,
     path: readonly string[],
     at: number,
-  ): Attrs {
-    if (!hasOwn(table, name)) {
-      const child: Attrs = {};
+  ): PlainAttrs {
+    if (!hasAttr(table, name)) {
+      const child: PlainAttrs = {};
       this.tableKinds.set(child, TableKind.Implicit);
       setKey(table, name, child);
       return child;
@@ -400,13 +409,13 @@ class Parser {
 
     const existing = storedValue(table, name);
     if (
-      isAttrs(existing) &&
+      isTable(existing) &&
       this.tableKinds.get(existing) !== TableKind.Inline
     ) {
       return existing;
     }
     if (isList(existing) && this.arraysOfTables.has(existing)) {
-      return existing[existing.length - 1] as Attrs;
+      return existing[existing.length - 1] as PlainAttrs;
     }
     this.error(
       `cannot open '${name}' in table header '${path.join(".")}': ${this.describeExisting(existing)}`,
@@ -414,7 +423,7 @@ class Parser {
     );
   }
 
-  private openTable(path: readonly string[], at: number): Attrs {
+  private openTable(path: readonly string[], at: number): PlainAttrs {
     let table = this.root;
     const lastIndex = path.length - 1;
     for (let i = 0; i < lastIndex; i++) {
@@ -422,8 +431,8 @@ class Parser {
     }
 
     const last = path[lastIndex]!;
-    if (!hasOwn(table, last)) {
-      const child: Attrs = {};
+    if (!hasAttr(table, last)) {
+      const child: PlainAttrs = {};
       this.tableKinds.set(child, TableKind.Header);
       setKey(table, last, child);
       return child;
@@ -433,7 +442,7 @@ class Parser {
     // on the way down, and nothing else.
     const existing = storedValue(table, last);
     if (
-      isAttrs(existing) &&
+      isTable(existing) &&
       this.tableKinds.get(existing) === TableKind.Implicit
     ) {
       this.tableKinds.set(existing, TableKind.Header);
@@ -445,17 +454,17 @@ class Parser {
     );
   }
 
-  private openArrayOfTables(path: readonly string[], at: number): Attrs {
+  private openArrayOfTables(path: readonly string[], at: number): PlainAttrs {
     let table = this.root;
     const lastIndex = path.length - 1;
     for (let i = 0; i < lastIndex; i++) {
       table = this.descendHeader(table, path[i]!, path, at);
     }
 
-    const element: Attrs = {};
+    const element: PlainAttrs = {};
     this.tableKinds.set(element, TableKind.Header);
     const last = path[lastIndex]!;
-    if (!hasOwn(table, last)) {
+    if (!hasAttr(table, last)) {
       const array: Lazy[] = [element];
       this.arraysOfTables.add(array);
       setKey(table, last, array);
@@ -476,7 +485,7 @@ class Parser {
 
   // Why an existing value blocks a definition, for error messages.
   private describeExisting(existing: Value): string {
-    if (isAttrs(existing)) {
+    if (isTable(existing)) {
       switch (this.tableKinds.get(existing)) {
         case TableKind.Header:
           return "a table of that name is already defined";
@@ -632,9 +641,9 @@ class Parser {
 
   // `{ k = v, k = v }` on one line, with no trailing comma. The table is
   // closed as soon as it is complete.
-  private parseInlineTable(): Attrs {
+  private parseInlineTable(): PlainAttrs {
     this.pos++;
-    const table: Attrs = {};
+    const table: PlainAttrs = {};
     this.tableKinds.set(table, TableKind.Inline);
 
     this.skipWhitespace();
@@ -952,13 +961,13 @@ function parseRadix(token: string, radix: number): bigint {
 
 // The parser stores only values, never thunks, so a property read back
 // from a table it built is a Value.
-function storedValue(table: Attrs, name: string): Value {
-  return table[name] as Value;
+function storedValue(table: PlainAttrs, name: string): Value {
+  return toPlain(table)[name] as Value;
 }
 
 // Define an own property even for names like "__proto__", which plain
 // assignment would treat specially.
-function setKey(table: Attrs, name: string, value: Lazy): void {
+function setKey(table: PlainAttrs, name: string, value: Lazy): void {
   Object.defineProperty(table, name, {
     value,
     writable: true,
@@ -969,6 +978,12 @@ function setKey(table: Attrs, name: string, value: Lazy): void {
 
 // Parse a TOML document into a Nix attribute set. Errors throw NixError
 // with a message starting "while parsing TOML: ".
-export function fromToml(text: string): Attrs {
+export function fromToml(text: string): PlainAttrs {
   return new Parser(text).parse();
+}
+
+// TOML tables are always plain sets; a layered set never comes from the
+// parser.
+function isTable(v: Value): v is PlainAttrs {
+  return isAttrs(v) && !(v instanceof Layered);
 }

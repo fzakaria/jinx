@@ -14,7 +14,13 @@ import { readFileSync } from "node:fs";
 import { registerTree, setCompileHook } from "../runtime/modules.ts";
 import { builtins, settings } from "../runtime/builtins.ts";
 import { app, forceAttrs, sel } from "../runtime/ops.ts";
-import { type Lazy, type Value, force } from "../runtime/value.ts";
+import {
+  type Attrs,
+  type Lazy,
+  type Value,
+  force,
+  getAttr,
+} from "../runtime/value.ts";
 
 export interface EvalOptions {
   // The output tree. Defaults to a cache mirroring the whole filesystem
@@ -64,10 +70,12 @@ const requireFromHere = createRequire(import.meta.url);
 export function evaluateFile(
   file: string,
   attrPath: string[],
-  args: Record<string, Lazy> | null,
+  args: Attrs | null,
 ): Value {
   const abs = resolve(file);
-  let v: Value = force((builtins["import"] as (p: Lazy) => Value)(abs));
+  let v: Value = force(
+    (getAttr(builtins, "import") as (p: Lazy) => Value)(abs),
+  );
   if (args !== null) {
     if (typeof v !== "function") {
       throw new Error(

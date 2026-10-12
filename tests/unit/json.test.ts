@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { fromJson, jsonQuote, toJson } from "../../src/runtime/json.ts";
 import type { JsonHooks } from "../../src/runtime/json.ts";
-import { NixError, NixString, Path, thunk } from "../../src/runtime/value.ts";
+import {
+  NixError,
+  NixString,
+  Path,
+  getAttr,
+  thunk,
+} from "../../src/runtime/value.ts";
 import type {
   Attrs,
   Lambda,
@@ -111,7 +117,7 @@ test("toJson attrset with __toString uses the hook", () => {
     ...noHooks,
     applyToString: (attrs) => {
       seen.push(attrs);
-      return `str:${String(attrs["tag"])}`;
+      return `str:${String(getAttr(attrs, "tag"))}`;
     },
   };
   const toStr = (() => "unused") as unknown as Lambda;
@@ -350,7 +356,7 @@ const DIFF_CASES: ReadonlyArray<readonly [string, Lazy]> = [
     {
       a: {
         __toString: ((self: Lazy) =>
-          `it is ${String((self as Attrs)["n"])}`) as unknown as Lambda,
+          `it is ${String(getAttr(self as Attrs, "n"))}`) as unknown as Lambda,
         n: "x",
       },
     },
@@ -361,7 +367,8 @@ const DIFF_CASES: ReadonlyArray<readonly [string, Lazy]> = [
 // Hooks for the differential test: the only one reachable is __toString,
 // which the test case lambdas implement directly in JS.
 const diffHooks: JsonHooks = {
-  applyToString: (attrs) => (attrs["__toString"] as Lambda)(attrs) as Str,
+  applyToString: (attrs) =>
+    (getAttr(attrs, "__toString") as Lambda)(attrs) as Str,
   copyPathToStore: () => {
     throw new Error("no paths in the differential cases");
   },

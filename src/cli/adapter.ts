@@ -28,6 +28,7 @@ import {
   NixError,
   force,
   isPrimOp,
+  getAttr,
 } from "../runtime/value.ts";
 import { toXml } from "../runtime/xml.ts";
 import { DEFAULT_CACHE, setup } from "./evaluate.ts";
@@ -230,7 +231,7 @@ function parseEvalFlags(flags: string[]): EvalFlags | null {
 }
 
 function importFile(file: string): Value {
-  return force((builtins["import"] as PrimOp)(resolve(file)));
+  return force((getAttr(builtins, "import") as PrimOp)(resolve(file)));
 }
 
 // The value of a `--arg` expression: nix-instantiate parses it with the

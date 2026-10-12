@@ -32,11 +32,172 @@ export type Lazy = Value | Thunk;
 
 export type List = readonly Lazy[];
 
-// Attribute sets are plain objects. Property order is irrelevant; every
-// place that enumerates sorts by name, as Nix does. Keys are looked up
-// with hasOwn so that inherited properties never count.
-export interface Attrs {
+// Attribute sets are plain objects, or a Layered set when they came from
+// `//` on a large set. Property order is irrelevant; every place that
+// enumerates sorts by name, as Nix does. Nothing reads a set's storage
+// directly: getAttr, hasAttr, attrKeys and friends below do, so that the
+// two representations are one thing to the rest of the runtime.
+export interface PlainAttrs {
   [name: string]: Lazy;
+}
+
+export type Attrs = PlainAttrs | Layered;
+
+// `base // over` without copying base. nixpkgs builds its package set as
+// a fixpoint over a chain of overlays, each `//` of a set with tens of
+// thousands of attributes; copying every layer is where an evaluation's
+// time went. A lookup walks the layers from the top; the chain is
+// flattened into one plain set when it gets deep or when it is
+// enumerated, and the flat set is kept.
+export class Layered {
+  readonly base: Attrs;
+  readonly over: Attrs;
+  readonly depth: number;
+  private flat: PlainAttrs | null = null;
+
+  constructor(base: Attrs, over: Attrs) {
+    this.base = base;
+    this.over = over;
+    const d = (a: Attrs): number => (a instanceof Layered ? a.depth : 0);
+    this.depth = Math.max(d(base), d(over)) + 1;
+  }
+
+  get(name: string): Lazy | undefined {
+    if (this.flat !== null) {
+      return hasOwn(this.flat, name) ? this.flat[name] : undefined;
+    }
+    let a: Attrs = this;
+    while (a instanceof Layered) {
+      if (a.flat !== null) {
+        a = a.flat;
+        break;
+      }
+      const v = getAttr(a.over, name);
+      if (v !== undefined) {
+        return v;
+      }
+      a = a.base;
+    }
+    return hasOwn(a, name) ? a[name] : undefined;
+  }
+
+  has(name: string): boolean {
+    return this.get(name) !== undefined;
+  }
+
+  // One plain set with every attribute, computed once and kept here;
+  // the layers below are not made to keep copies of their own.
+  flatten(): PlainAttrs {
+    if (this.flat !== null) {
+      return this.flat;
+    }
+    const overs: Attrs[] = [];
+    let a: Attrs = this;
+    while (a instanceof Layered && a.flat === null) {
+      overs.push(a.over);
+      a = a.base;
+    }
+    const flat: PlainAttrs = { ...(a instanceof Layered ? a.flat! : a) };
+    for (let i = overs.length - 1; i >= 0; i--) {
+      Object.assign(flat, toPlain(overs[i]!));
+    }
+    this.flat = flat;
+    return flat;
+  }
+
+  // Layers are only made over non-empty sets, so a layered set is never
+  // empty, and its size is only known once flattened.
+  get isEmpty(): boolean {
+    return false;
+  }
+}
+
+// How many layers a chain may grow before `//` flattens it, so lookups
+// stay short even for a fold that merges thousands of small sets.
+const MAX_LAYERS = 16;
+
+// Sets smaller than this are copied by `//`; a copy of a small set is
+// cheaper than a layer.
+const LAYER_THRESHOLD = 256;
+
+// The lazy value of an attribute, or undefined when absent.
+export function getAttr(a: Attrs, name: string): Lazy | undefined {
+  if (a instanceof Layered) {
+    return a.get(name);
+  }
+  return hasOwn(a, name) ? a[name] : undefined;
+}
+
+export function hasAttr(a: Attrs, name: string): boolean {
+  if (a instanceof Layered) {
+    return a.has(name);
+  }
+  return hasOwn(a, name);
+}
+
+// The plain object holding every attribute: the set itself, or a layered
+// set flattened.
+export function toPlain(a: Attrs): PlainAttrs {
+  return a instanceof Layered ? a.flatten() : a;
+}
+
+// Attribute names in no particular order.
+export function attrKeys(a: Attrs): string[] {
+  return Object.keys(toPlain(a));
+}
+
+// Sizes of plain sets, counted once: sets are immutable, and counting a
+// large one on every `//` was itself a cost.
+const sizes = new WeakMap<PlainAttrs, number>();
+
+export function attrCount(a: Attrs): number {
+  const p = toPlain(a);
+  let n = sizes.get(p);
+  if (n === undefined) {
+    n = 0;
+    for (const _ in p) {
+      n++;
+    }
+    sizes.set(p, n);
+  }
+  return n;
+}
+
+export function isEmptyAttrs(a: Attrs): boolean {
+  if (a instanceof Layered) {
+    return a.isEmpty;
+  }
+  for (const _ in a) {
+    return false;
+  }
+  return true;
+}
+
+// Whether a set is large enough to be worth layering rather than copying.
+// A layered set always is, by construction.
+export function isLargeAttrs(a: Attrs): boolean {
+  return a instanceof Layered || attrCount(a) >= LAYER_THRESHOLD;
+}
+
+// `x // y`: shared thunks, nothing forced. Small left sides are copied;
+// large ones get a layer, and a deep chain is flattened.
+export function updateAttrs(x: Attrs, y: Attrs): Attrs {
+  if (isEmptyAttrs(y)) {
+    return x;
+  }
+  if (isEmptyAttrs(x)) {
+    return y;
+  }
+  if (x instanceof Layered) {
+    if (x.depth >= MAX_LAYERS) {
+      return { ...x.flatten(), ...toPlain(y) };
+    }
+    return new Layered(x, y);
+  }
+  if (isLargeAttrs(x)) {
+    return new Layered(x, y);
+  }
+  return { ...x, ...toPlain(y) };
 }
 
 export interface Formals {
@@ -188,6 +349,9 @@ export class NixAssert extends NixError {
 export function isAttrs(v: Value): v is Attrs {
   if (typeof v !== "object" || v === null) {
     return false;
+  }
+  if (v instanceof Layered) {
+    return true;
   }
   const proto = Object.getPrototypeOf(v);
   return proto === Object.prototype || proto === null;
@@ -413,11 +577,11 @@ function compareCodePoints(a: string, b: string, from: number): number {
 }
 
 export function sortedNames(attrs: Attrs): string[] {
-  return Object.keys(attrs).sort(compareNames);
+  return attrKeys(attrs).sort(compareNames);
 }
 
 // A fresh attribute set. Object literals in the emitted code are also
 // attribute sets; this is for the runtime's own construction.
-export function newAttrs(): Attrs {
+export function newAttrs(): PlainAttrs {
   return {};
 }

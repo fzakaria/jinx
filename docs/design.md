@@ -85,10 +85,22 @@ Attribute sets are plain objects because an object literal is the most
 readable thing TypeScript has and V8 is good at them. Their property
 order is irrelevant: Nix sorts attribute names bytewise wherever order
 is observable, and so does every runtime function here
-(`compareNames`). Lookups use `Object.hasOwn`, and the one key that is
-special in object literals, `__proto__`, is emitted as a computed key.
-`a // b` is `{ ...a, ...b }`: the thunks are shared, nothing is forced,
-which is Nix's semantics and Nix's cost.
+(`compareNames`). The one key that is special in object literals,
+`__proto__`, is emitted as a computed key.
+
+`a // b` shares the thunks and forces nothing, which is Nix's semantics.
+Its cost is where the first profile of a nixpkgs evaluation went: the
+package set is a fixpoint over a chain of overlays, each a `//` of a set
+with tens of thousands of attributes, and nixpkgs performs hundreds of
+such merges, every one of which copied the set. A `//` on a set of 256
+attributes or more therefore makes a `Layered` set instead: the two
+operands and nothing else, with lookups walking the layers from the top
+(`src/runtime/value.ts`). A chain is flattened into one plain object
+when it grows past 16 layers or when something enumerates it, and the
+flat set is kept. Every reader goes through `getAttr`, `hasAttr` and
+`attrKeys`, so the two representations are one thing to the rest of the
+runtime and to the emitted code. On a 66-package sample this halved the
+evaluation time.
 
 ## Where thunks go
 
@@ -247,8 +259,17 @@ Nix per attribute and the design leaves three ways to win:
   startup snapshot of the evaluated fixpoint would make a second
   evaluation start where the first left off.
 
-A Nix evaluation recurses deeply, so the evaluator runs in a worker
-thread with a large stack rather than the main thread's default.
+A Nix evaluation recurses deeply, so the evaluator runs with a large
+stack: the installed wrapper lifts the OS limit and gives V8 1 GB, and
+`eval-jobs` workers get theirs through `resourceLimits`.
+
+Where the time goes today, on the 66-package sample (27 s against Nix's
+9 s): a tenth in `app`, a tenth in building and hashing ATerms, a tenth
+in loading and type-stripping modules (gone with a precompiled tree), a
+fifth in the attribute set operations above, and the rest spread
+across forcing, GC and the builtins. The intersectAttrs of every
+`callPackage`, which iterated all of pkgs, and the `//` copies were the
+two that dominated before the layered sets.
 
 ## Source maps
 

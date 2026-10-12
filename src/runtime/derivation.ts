@@ -50,6 +50,8 @@ import {
   sortedNames,
   strContext,
   strValue,
+  getAttr,
+  hasAttr,
 } from "./value.ts";
 
 export type Output =
@@ -105,17 +107,17 @@ const HASH_ALGOS: ReadonlySet<string> = new Set([
 
 export function derivationStrict(arg: Lazy): Attrs {
   const attrs = forceAttrs(arg);
-  if (!hasOwn(attrs, "name")) {
+  if (!hasAttr(attrs, "name")) {
     throw new NixError("required attribute 'name' missing");
   }
-  const drvName = forceStringNoCtx(attrs["name"] as Lazy);
+  const drvName = forceStringNoCtx(getAttr(attrs, "name") as Lazy);
   checkStoreName(drvName);
 
-  const structured = hasOwn(attrs, "__structuredAttrs")
-    ? forceBool(attrs["__structuredAttrs"] as Lazy)
+  const structured = hasAttr(attrs, "__structuredAttrs")
+    ? forceBool(getAttr(attrs, "__structuredAttrs") as Lazy)
     : false;
-  const ignoreNulls = hasOwn(attrs, "__ignoreNulls")
-    ? forceBool(attrs["__ignoreNulls"] as Lazy)
+  const ignoreNulls = hasAttr(attrs, "__ignoreNulls")
+    ? forceBool(getAttr(attrs, "__ignoreNulls") as Lazy)
     : false;
 
   const env = new Map<string, string>();
@@ -159,7 +161,7 @@ export function derivationStrict(arg: Lazy): Attrs {
     if (k === "__ignoreNulls") {
       continue;
     }
-    const lazyValue = attrs[k] as Lazy;
+    const lazyValue = getAttr(attrs, k) as Lazy;
     if (ignoreNulls && force(lazyValue) === null) {
       continue;
     }
@@ -185,7 +187,8 @@ export function derivationStrict(arg: Lazy): Attrs {
         continue;
       }
       const hooks = {
-        applyToString: (a: Attrs) => forceStr(app(a["__toString"] as Lazy, a)),
+        applyToString: (a: Attrs) =>
+          forceStr(app(getAttr(a, "__toString") as Lazy, a)),
         copyPathToStore: (p: Path) => copyPathToStore(p),
       };
       const { json: text, context: ctx } = toJson(lazyValue, hooks);

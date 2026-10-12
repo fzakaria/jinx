@@ -27,6 +27,7 @@ import {
   NixError,
   isString,
   strValue,
+  getAttr,
 } from "../runtime/value.ts";
 
 interface Parsed {
@@ -198,7 +199,8 @@ function evalCmd(
     const v = evaluateFile(file, attrPath, null);
     if (flags.has("json")) {
       const { json } = toJson(v, {
-        applyToString: (a: Attrs) => forceStr(app(a["__toString"] as Lazy, a)),
+        applyToString: (a: Attrs) =>
+          forceStr(app(getAttr(a, "__toString") as Lazy, a)),
         copyPathToStore: (p) => copyPathToStore(p),
       });
       process.stdout.write(json + "\n");

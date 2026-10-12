@@ -37,6 +37,10 @@ import {
   isList,
   strValue,
   typeOf,
+  getAttr,
+  hasAttr,
+  attrKeys,
+  type PlainAttrs,
 } from "../runtime/value.ts";
 
 // A viewed Nix value: attribute access forces, calls apply, and the
@@ -96,7 +100,7 @@ export function toNix(v: unknown): Lazy {
       }
       const proto = Object.getPrototypeOf(v);
       if (proto === Object.prototype || proto === null) {
-        const out: Attrs = {};
+        const out: PlainAttrs = {};
         for (const k of Object.keys(v)) {
           out[k] = toNix((v as Record<string, unknown>)[k]);
         }
@@ -140,30 +144,30 @@ export function view(v: Lazy): View {
 // `fetchurl` and every `makeOverridable` function do) the proxy target is
 // a function, so the view is callable as well as readable.
 function attrsView(a: Attrs): View {
-  const callable = hasOwn(a, "__functor");
+  const callable = hasAttr(a, "__functor");
   const target = callable ? (): void => undefined : a;
   return new Proxy(target, {
     get(_t, key) {
       if (key === RAW) {
         return a;
       }
-      if (typeof key !== "string" || !hasOwn(a, key)) {
+      if (typeof key !== "string" || !hasAttr(a, key)) {
         return undefined;
       }
-      return view(a[key] as Lazy);
+      return view(getAttr(a, key) as Lazy);
     },
     has(_t, key) {
-      return key === RAW || (typeof key === "string" && hasOwn(a, key));
+      return key === RAW || (typeof key === "string" && hasAttr(a, key));
     },
     ownKeys() {
-      return Object.keys(a);
+      return attrKeys(a);
     },
     getOwnPropertyDescriptor(_t, key) {
-      if (typeof key === "string" && hasOwn(a, key)) {
+      if (typeof key === "string" && hasAttr(a, key)) {
         return {
           enumerable: true,
           configurable: true,
-          value: view(a[key] as Lazy),
+          value: view(getAttr(a, key) as Lazy),
         };
       }
       return undefined;

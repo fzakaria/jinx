@@ -16,6 +16,7 @@ import {
   force,
   isString,
   strValue,
+  getAttr,
 } from "../runtime/value.ts";
 import { app, forceStr } from "../runtime/ops.ts";
 import { copyPathToStore, pending } from "../runtime/store.ts";
@@ -80,7 +81,8 @@ export function evaluate(typescript: string): EvalResult | Failure {
     let json: string | null = null;
     try {
       json = toJson(value, {
-        applyToString: (a) => forceStr(app(a["__toString"] as Lazy, a)),
+        applyToString: (a) =>
+          forceStr(app(getAttr(a, "__toString") as Lazy, a)),
         copyPathToStore: (p) => copyPathToStore(p),
       }).json;
     } catch {
