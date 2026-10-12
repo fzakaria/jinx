@@ -192,7 +192,10 @@ function locate(p: string, follow: FollowSymlinks): Located | null {
       const last = i === rel.length - 1;
       // A symlink in the middle, or at the end when following: splice
       // its target in and start over from the mount root.
-      if (typeof entry === "string" && (!last || follow === FollowSymlinks.Yes)) {
+      if (
+        typeof entry === "string" &&
+        (!last || follow === FollowSymlinks.Yes)
+      ) {
         if (++hops > MAX_SYMLINK_DEPTH) {
           return null;
         }
@@ -327,7 +330,10 @@ function bytesOf(p: string): Uint8Array {
     throw missing(p);
   }
   if (isDir(loc.entry)) {
-    throw new FsError("EISDIR", `EISDIR: illegal operation on a directory, read '${p}'`);
+    throw new FsError(
+      "EISDIR",
+      `EISDIR: illegal operation on a directory, read '${p}'`,
+    );
   }
   const key = loc.mount.path + "/" + loc.rel.join("/");
   const cached = contents.get(key);

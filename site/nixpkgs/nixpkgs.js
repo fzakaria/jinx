@@ -142,7 +142,8 @@ function showResult(r) {
   const source = $("source");
   source.replaceChildren();
   if (r.position === null) {
-    source.textContent = "unknown (jinx does not record meta.position, and the attribute is not in pkgs/by-name)";
+    source.textContent =
+      "unknown (jinx does not record meta.position, and the attribute is not in pkgs/by-name)";
     $("ts-toggle").hidden = true;
   } else {
     const a = document.createElement("a");
@@ -159,7 +160,8 @@ function showResult(r) {
   $("typescript").hidden = true;
   $("typescript").textContent = "";
   $("ts-toggle").textContent = SHOW_TS;
-  $("ts-toggle").dataset.url = r.position === null ? "" : compiledModuleUrl(r.position);
+  $("ts-toggle").dataset.url =
+    r.position === null ? "" : compiledModuleUrl(r.position);
   setStatus(`done in ${formatMillis(r.millis)}`);
 }
 
@@ -224,7 +226,7 @@ function renderSuggestions() {
   const text = $("attr").value.trim();
   const items = text.includes(".") ? [] : suggestionsFor(text);
   list.replaceChildren();
-  if (items.length === 0 || items.length === 1 && items[0] === text) {
+  if (items.length === 0 || (items.length === 1 && items[0] === text)) {
     hideSuggestions();
     return;
   }
@@ -289,7 +291,9 @@ function onMessage(ev) {
       names = msg.names;
       showSetTime(msg.millis);
       showActivity(msg);
-      setStatus(`package set ready in ${formatMillis(msg.millis)}: ${names.length} attributes`);
+      setStatus(
+        `package set ready in ${formatMillis(msg.millis)}: ${names.length} attributes`,
+      );
       $("attr").disabled = false;
       $("run").disabled = false;
       $("attr").focus();

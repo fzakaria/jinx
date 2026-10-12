@@ -39,10 +39,7 @@ export function onLoad(cb: (path: string) => void): void {
   loadListener = cb;
 }
 
-type CompiledModule = (
-  rt: unknown,
-  meta: { url: string },
-) => unknown;
+type CompiledModule = (rt: unknown, meta: { url: string }) => unknown;
 
 function load(p: string): { default: unknown } {
   const cached = modules.get(p);

@@ -52,6 +52,23 @@ built from `src/browser/playground.ts`):
 `window.playground` is the page: `getNix()`, `setNix(text)`,
 `getTypeScript()` and `run()`.
 
+## The nixpkgs page
+
+`/nixpkgs/` evaluates real nixpkgs in the tab: a worker
+(`js/nixpkgs-worker.js`, built from `src/browser/nixpkgs-worker.ts`)
+runs the compiled nixpkgs tree named by `nixpkgs/config.json`
+(`treeUrl`, `srcUrl`, `rev`), fetching each module as the evaluation
+reaches it. The state is the hash: `#attr=hello`, a dotted path for a
+nested set (`#attr=python3Packages.requests`). The page evaluates the
+package set once on load (`#status` reads "package set ready in ...",
+then `#attr` and `#run` are enabled) and runs the attribute from the
+hash. The result is in the DOM: `#result-card` with the name
+(`#result-title`), `#drv-path`, `#outputs` (one line per output),
+`#source` (the `.nix` on GitHub) and `#trynix-link`, whose href boots
+the output path at trynix.dev; `#error-text` holds a failure; `#status`
+reads "done in N ms" or "failed". `#activity` counts the modules, files
+and bytes fetched so far.
+
 ## Docs
 
 - [README](https://github.com/fzakaria/jinx): what it is and how it is

@@ -40,8 +40,7 @@ export function indexDir(dir: string): IndexDir {
       continue;
     }
     if (st.isFile()) {
-      out[name] =
-        (st.mode & MODE_ANY_EXECUTE) !== 0 ? [st.size] : st.size;
+      out[name] = (st.mode & MODE_ANY_EXECUTE) !== 0 ? [st.size] : st.size;
       continue;
     }
     // Sockets, devices and the like: not in a source tree, and nothing

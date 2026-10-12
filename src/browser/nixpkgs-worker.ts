@@ -197,7 +197,8 @@ function str(v: nix.Lazy): string {
 function positionOf(attr: string, pkg: nix.Attrs): string | null {
   const meta = nix.getAttr(pkg, "meta");
   const m = meta === undefined ? null : nix.force(meta);
-  const pos = m !== null && nix.isAttrs(m) ? nix.getAttr(m, "position") : undefined;
+  const pos =
+    m !== null && nix.isAttrs(m) ? nix.getAttr(m, "position") : undefined;
   if (pos !== undefined && nix.force(pos) !== null) {
     const p = str(pos);
     const prefix = `${SRC_ROOT}/`;
