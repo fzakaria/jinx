@@ -57,6 +57,8 @@ const SEARCH_DEBOUNCE_MS = 150;
 const MAX_RESULTS = 200;
 const MIN_QUERY_CHARS = 1;
 const MORE_MEMBERS_STEP = 100;
+// Causes shown at first, and added per click on "more".
+const GROUPS_STEP = 10;
 const SECONDS_PER_MINUTE = 60;
 const PERCENT = 100;
 const SHARE_PRECISION = 2;
@@ -268,11 +270,10 @@ function drawTiles(summary) {
     (summary.differ ?? 0) + (summary.jinxError ?? 0) + (summary.nixError ?? 0);
   $("verdict").replaceChildren(
     red === 0
-      ? "Zero differing drvPaths and zero one-sided failures is the bar fix set, and jinx meets it on this revision: " +
-          "every attribute Nix can evaluate, jinx evaluates to the same derivation, and every attribute Nix " +
+      ? "Every attribute Nix evaluates, jinx evaluates to the same derivation, and every attribute Nix " +
           "rejects, jinx rejects."
-      : `${count(red)} attributes differ or fail on one side only; the bar is zero. ` +
-          "The groups below are the work queue.",
+      : `${count(red)} attributes differ or fail on one side only. The causes at the end of the page ` +
+          "are the work queue.",
   );
 }
 
@@ -350,45 +351,70 @@ function drawFamilies(families) {
 
 // One folded row per cause: the count, the message, and on opening the
 // example attributes with the rest a click away.
-function drawErrors(host, groups, table) {
-  const rows = groups.map((group) => {
-    const examples = html(
-      "ul",
-      { class: "examples" },
-      group.examples.map((attr) => html("li", {}, [attr])),
-    );
-    const hidden = group.members.length - group.examples.length;
-    const details = html("details", { class: "group" }, [
-      html("summary", {}, [
-        html("span", { class: "count" }, [count(group.count)]),
-        html("span", { class: "message" }, [group.message]),
-      ]),
-      examples,
+// One cause: its count, its message, a few of its attributes, and a link
+// that reveals the rest of them a page at a time.
+function drawGroup(group, table) {
+  const examples = html(
+    "ul",
+    { class: "examples" },
+    group.examples.map((attr) => html("li", {}, [attr])),
+  );
+  const hidden = group.members.length - group.examples.length;
+  const details = html("details", { class: "group" }, [
+    html("summary", {}, [
+      html("span", { class: "count" }, [count(group.count)]),
+      html("span", { class: "message" }, [group.message]),
+    ]),
+    examples,
+  ]);
+  if (hidden > 0) {
+    let shown = group.examples.length;
+    const more = html("a", { href: "#", class: "more" }, [
+      `and ${count(hidden)} more`,
     ]);
-    if (hidden > 0) {
-      let shown = group.examples.length;
-      const more = html("a", { href: "#", class: "more" }, [
-        `and ${count(hidden)} more`,
-      ]);
-      more.addEventListener("click", (event) => {
-        event.preventDefault();
-        const next = Math.min(group.members.length, shown + MORE_MEMBERS_STEP);
-        for (const id of group.members.slice(shown, next)) {
-          examples.append(html("li", {}, [pathOfId(table, id)]));
-        }
-        shown = next;
-        const left = group.members.length - shown;
-        if (left === 0) {
-          more.remove();
-          return;
-        }
-        more.textContent = `and ${count(left)} more`;
-      });
-      details.append(more);
+    more.addEventListener("click", (event) => {
+      event.preventDefault();
+      const next = Math.min(group.members.length, shown + MORE_MEMBERS_STEP);
+      for (const id of group.members.slice(shown, next)) {
+        examples.append(html("li", {}, [pathOfId(table, id)]));
+      }
+      shown = next;
+      const left = group.members.length - shown;
+      if (left === 0) {
+        more.remove();
+        return;
+      }
+      more.textContent = `and ${count(left)} more`;
+    });
+    details.append(more);
+  }
+  return details;
+}
+
+// The causes, GROUPS_STEP at a time behind a "more" link.
+function drawErrors(host, groups, table) {
+  host.replaceChildren();
+  let shown = 0;
+  const more = html("a", { href: "#", class: "more causes" }, []);
+  const show = () => {
+    const next = Math.min(groups.length, shown + GROUPS_STEP);
+    for (const group of groups.slice(shown, next)) {
+      host.insertBefore(drawGroup(group, table), more);
     }
-    return details;
+    shown = next;
+    const left = groups.length - shown;
+    if (left === 0) {
+      more.remove();
+      return;
+    }
+    more.textContent = `${count(left)} more`;
+  };
+  more.addEventListener("click", (event) => {
+    event.preventDefault();
+    show();
   });
-  host.replaceChildren(...rows);
+  host.append(more);
+  show();
 }
 
 // ---- the search ----------------------------------------------------------------

@@ -15,7 +15,7 @@
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="jinx" />
-    <meta property="og:title" content="jinx — parity with Nix on all of nixpkgs" />
+    <meta property="og:title" content="jinx: parity with Nix on all of nixpkgs" />
     <meta
       property="og:description"
       content="Every attribute of nixpkgs, evaluated by nix-eval-jobs and by jinx, and the derivation paths compared one by one."
@@ -59,15 +59,13 @@
       <p class="intro">
         <strong class="lede">Every attribute of nixpkgs, jinx against Nix.</strong>
         <a href="https://github.com/nix-community/nix-eval-jobs">nix-eval-jobs</a> and jinx each
-        evaluate nixpkgs' own CI configuration (<code>ci/eval/outpaths.nix</code>) and write one line
-        per attribute: its derivation path, or the error. The two outputs are joined on the attribute
-        path and every line is one of identical, both failed, differ, or failed on one side only.
-        <span class="claim">The bar is zero in the last three columns</span>, which is what
-        <a href="https://github.com/psyclyx/fix">fix</a> met before jinx.
-        <a href="../docs/verification">verification.md</a> describes the method; the joined table
-        for each revision is kept in
-        <a href="https://github.com/fzakaria/jinx-nixpkgs">jinx-nixpkgs</a> as
-        <code>parity/joined.tsv.gz</code>.
+        evaluate nixpkgs' CI configuration (<code>ci/eval/outpaths.nix</code>) and write one line per
+        attribute: its derivation path, or the error. The two are joined on the attribute path, and
+        every line is identical, both failed, differ, or failed on one side only.
+        <span class="claim">The bar is zero in the last three columns.</span>
+        <a href="../docs/verification">verification.md</a> has the method; the joined table for each
+        revision is <code>parity/joined.tsv.gz</code> in
+        <a href="https://github.com/fzakaria/jinx-nixpkgs">jinx-nixpkgs</a>.
       </p>
 
       <p id="status" class="muted" aria-live="polite">Loading…</p>
@@ -94,18 +92,6 @@
         <div id="families" class="bars"></div>
       </section>
 
-      <section id="errors-section" hidden>
-        <h2>Why both sides fail</h2>
-        <p id="errors-note"></p>
-        <div id="errors"></div>
-      </section>
-
-      <section id="jinx-errors-section" hidden>
-        <h2>Where only jinx fails</h2>
-        <p id="jinx-errors-note"></p>
-        <div id="jinx-errors"></div>
-      </section>
-
       <section id="search-section" hidden>
         <h2>Every attribute</h2>
         <p>
@@ -129,6 +115,18 @@
           <span id="search-status" class="muted" aria-live="polite"></span>
         </div>
         <div id="results" class="scroll"></div>
+      </section>
+
+      <section id="jinx-errors-section" hidden>
+        <h2>Where only jinx fails</h2>
+        <p id="jinx-errors-note"></p>
+        <div id="jinx-errors"></div>
+      </section>
+
+      <section id="errors-section" hidden>
+        <h2>Why both sides fail</h2>
+        <p id="errors-note"></p>
+        <div id="errors"></div>
       </section>
     </main>
 

@@ -205,6 +205,12 @@ details.group .more {
   margin-left: 5rem;
   font-size: 13px;
 }
+/* The link under the causes that reveals the next ten. */
+.more.causes {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 13px;
+}
 
 /* The search: the field, then the results as a table. */
 #query {
