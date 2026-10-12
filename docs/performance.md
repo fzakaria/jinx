@@ -42,7 +42,7 @@ the median.
 ```console
 $ nix run .#bench                              # every probe, 3 runs each, appends to site/bench/history.json
 $ nix run .#bench -- --probes lib,hello --runs 1 --history /tmp/h.json
-$ nix run .#bench -- --nixpkgs /path/to/nixpkgs
+$ nix run .#bench -- --nixpkgs /path/to/nixpkgs --rev <commit>
 ```
 
 The app puts nix, node and GNU time on PATH and measures the installed

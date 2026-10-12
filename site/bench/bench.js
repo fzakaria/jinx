@@ -102,6 +102,32 @@ function shortCommit(record) {
   return (record.jinxCommit ?? "").slice(0, SHORT_COMMIT);
 }
 
+// A record names its nixpkgs by commit when the run knew it, else by the
+// store path's own hash.
+const NIXPKGS_COMMIT_URL = "https://github.com/NixOS/nixpkgs/commit/";
+const SHORT_REV = 7;
+
+function nixpkgsName(record) {
+  if (record.nixpkgsRev) {
+    return record.nixpkgsRev.slice(0, SHORT_REV);
+  }
+  return (record.nixpkgs ?? "?")
+    .replace(/-source$/, "")
+    .split("-")
+    .at(-1)
+    .slice(0, SHORT_REV);
+}
+
+function nixpkgsLink(record) {
+  const name = nixpkgsName(record);
+  if (!record.nixpkgsRev) {
+    return name;
+  }
+  return html("a", { href: NIXPKGS_COMMIT_URL + record.nixpkgsRev }, [
+    html("code", {}, [name]),
+  ]);
+}
+
 function commitLink(record) {
   return html("a", { href: COMMIT_URL + record.jinxCommit, class: "commit" }, [
     html("code", {}, [shortCommit(record)]),
@@ -381,7 +407,7 @@ function panel(title, subtitle, records, probe, measure, tooltipHost) {
     const probeRecord = record.probes?.[probe];
     tooltipHost.replaceChildren(
       html("div", { class: "tip-head" }, [
-        `${dateOf(record)} · nixpkgs ${record.nixpkgs ?? "?"}`,
+        `${dateOf(record)} · nixpkgs ${nixpkgsName(record)}`,
       ]),
       html("div", { class: "tip-commit" }, [`jinx ${shortCommit(record)}`]),
       ...series.map((s) =>
@@ -456,7 +482,9 @@ function drawLatest(records, probes) {
   $("latest-meta").replaceChildren(
     `${dateOf(latest)} · jinx `,
     commitLink(latest),
-    ` · nixpkgs ${latest.nixpkgs ?? "?"} · Nix ${latest.nixVersion ?? "?"} · Node ${latest.nodeVersion ?? "?"} · ` +
+    " · nixpkgs ",
+    nixpkgsLink(latest),
+    ` · Nix ${latest.nixVersion ?? "?"} · Node ${latest.nodeVersion ?? "?"} · ` +
       `${machine.host ?? "?"}: ${machine.cpu ?? "?"}, ${machine.cores ?? "?"} cores, ${machine.memoryGb ?? "?"} GB · ` +
       `median of ${latest.runs ?? "?"} runs`,
   );

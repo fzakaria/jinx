@@ -220,6 +220,7 @@ function sampleExpression(nixpkgs: string): string {
 
 interface Options {
   readonly nixpkgs: string | null;
+  readonly rev: string | null;
   readonly history: string;
   readonly probes: readonly string[];
   readonly runs: number;
@@ -228,7 +229,7 @@ interface Options {
 
 function usage(): never {
   process.stderr.write(
-    "usage: node tools/bench.ts [--nixpkgs <path>] [--history <file>] " +
+    "usage: node tools/bench.ts [--nixpkgs <path>] [--rev <commit>] [--history <file>] " +
       `[--probes ${[...PROBES.keys()].join(",")}] [--runs N] [--jinx <exe>]\n`,
   );
   process.exit(2);
@@ -236,6 +237,7 @@ function usage(): never {
 
 function parseArgs(argv: readonly string[]): Options {
   let nixpkgs: string | null = null;
+  let rev: string | null = null;
   let history = DEFAULT_HISTORY;
   let probes: readonly string[] = [...PROBES.keys()];
   let runs = DEFAULT_RUNS;
@@ -250,6 +252,9 @@ function parseArgs(argv: readonly string[]): Options {
     switch (flag) {
       case "--nixpkgs":
         nixpkgs = value;
+        break;
+      case "--rev":
+        rev = value;
         break;
       case "--history":
         history = value;
@@ -278,7 +283,7 @@ function parseArgs(argv: readonly string[]): Options {
   if (!Number.isInteger(runs) || runs < 1) {
     usage();
   }
-  return { nixpkgs, history, probes, runs, jinx };
+  return { nixpkgs, rev, history, probes, runs, jinx };
 }
 
 // ---- running commands -----------------------------------------------------
@@ -542,6 +547,9 @@ interface BenchRecord {
   readonly jinxCommit: string;
   readonly nixpkgs: string;
   readonly nixpkgsPath: string;
+  // The nixpkgs commit, when known: --rev, or the .git-revision file a
+  // channel tarball carries; null for a bare store path.
+  readonly nixpkgsRev: string | null;
   readonly nixVersion: string;
   readonly nodeVersion: string;
   readonly machine: Machine;
@@ -552,6 +560,15 @@ interface BenchRecord {
 interface History {
   readonly description: string;
   readonly records: BenchRecord[];
+}
+
+// The commit a channel tarball records in .git-revision; null otherwise.
+function gitRevision(nixpkgs: string): string | null {
+  try {
+    return readFileSync(join(nixpkgs, ".git-revision"), "utf8").trim();
+  } catch {
+    return null;
+  }
 }
 
 function machine(): Machine {
@@ -647,6 +664,7 @@ function main(argv: readonly string[]): number {
     jinxCommit: jinxCommit(),
     nixpkgs: nixpkgsName(nixpkgs, fromRegistry),
     nixpkgsPath: nixpkgs,
+    nixpkgsRev: options.rev ?? gitRevision(nixpkgs),
     nixVersion,
     nodeVersion,
     machine: where,

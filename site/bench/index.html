@@ -45,9 +45,8 @@
 
     <main>
       <p class="intro">
-        <strong class="lede">jinx against Nix, on the same machine.</strong> Each record is one
-        run of
-        <a href="https://github.com/fzakaria/jinx/blob/main/tools/bench.ts">tools/bench.ts</a>:
+        <strong class="lede">Each record is one run of
+        <a href="https://github.com/fzakaria/jinx/blob/main/tools/bench.ts">tools/bench.ts</a>:</strong>
         a few evaluations that nix-instantiate and jinx both perform on the same nixpkgs, timed
         under GNU time as the median of three runs. jinx runs cold, into an empty cache, which
         includes compiling every module the evaluation touches, and warm, with the compiled
@@ -61,10 +60,6 @@
       <div id="latest"></div>
 
       <h2>Over time</h2>
-      <p>
-        Wall seconds per probe, one point per record, labelled with the jinx commit it measured.
-        Lower is better. A gap is a run jinx did not finish.
-      </p>
       <div id="legend" class="legend"></div>
       <div id="charts"></div>
 

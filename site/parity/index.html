@@ -56,14 +56,10 @@
     <main>
       <p class="intro">
         <strong class="lede">Every attribute of nixpkgs, jinx against Nix.</strong>
-        <a href="https://github.com/nix-community/nix-eval-jobs">nix-eval-jobs</a> and jinx each
-        evaluate nixpkgs' CI configuration (<code>ci/eval/outpaths.nix</code>) and write one line per
-        attribute: its derivation path, or the error. The two are joined on the attribute path, and
-        every line is identical, both failed, differ, or failed on one side only.
-        <span class="claim">The bar is zero in the last three columns.</span>
-        <a href="../docs/verification">verification.md</a> has the method; the joined table for each
-        revision is <code>parity/joined.tsv.gz</code> in
-        <a href="https://github.com/fzakaria/jinx-nixpkgs">jinx-nixpkgs</a>.
+        nix-eval-jobs and jinx each evaluate nixpkgs'
+        <a id="ci-config" href="https://github.com/NixOS/nixpkgs/blob/master/ci/eval/outpaths.nix">CI configuration</a>.
+        The two are joined on the attribute path, and every line is identical, both failed,
+        differ, or failed on one side only.
       </p>
 
       <p id="status" class="muted" aria-live="polite">Loading…</p>
@@ -72,22 +68,6 @@
         <p id="meta" class="muted"></p>
         <div id="tiles" class="tiles"></div>
         <p id="verdict"></p>
-      </section>
-
-      <section id="systems-section" hidden>
-        <h2>By system</h2>
-        <p>
-          The attribute path's last element is the system it was evaluated for. Each bar is one
-          system's attributes; the segments are the outcomes, in the colours of the legend.
-        </p>
-        <div id="legend" class="legend"></div>
-        <div id="systems" class="bars"></div>
-      </section>
-
-      <section id="families-section" hidden>
-        <h2>By family</h2>
-        <p id="families-note"></p>
-        <div id="families" class="bars"></div>
       </section>
 
       <section id="search-section" hidden>
@@ -113,6 +93,22 @@
           <span id="search-status" class="muted" aria-live="polite"></span>
         </div>
         <div id="results" class="scroll"></div>
+      </section>
+
+      <section id="systems-section" hidden>
+        <h2>By system</h2>
+        <p>
+          The attribute path's last element is the system it was evaluated for. Each bar is one
+          system's attributes; the segments are the outcomes, in the colours of the legend.
+        </p>
+        <div id="legend" class="legend"></div>
+        <div id="systems" class="bars"></div>
+      </section>
+
+      <section id="families-section" hidden>
+        <h2>By family</h2>
+        <p id="families-note"></p>
+        <div id="families" class="bars"></div>
       </section>
 
       <section id="jinx-errors-section" hidden>

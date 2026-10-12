@@ -91,7 +91,8 @@
           },
           "match": true
         }
-      }
+      },
+      "nixpkgsRev": null
     },
     {
       "date": "2026-10-12T17:50:12.280Z",
@@ -188,7 +189,8 @@
           },
           "match": true
         }
-      }
+      },
+      "nixpkgsRev": "6510408d147d8c5e6d76043e899e9251756f6a75"
     }
   ]
 }

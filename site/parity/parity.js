@@ -206,9 +206,7 @@ function byNameUrl(rev, name) {
 // ---- the sections -------------------------------------------------------------
 
 function drawMeta(data) {
-  const machine = data.machine ?? {};
-  const timing = data.timing ?? {};
-  const parts = [
+  $("meta").replaceChildren(
     `${data.date} · nixpkgs `,
     html("a", { href: data.nixpkgs.url }, [
       html("code", {}, [data.nixpkgs.rev.slice(0, SHORT_COMMIT)]),
@@ -219,30 +217,10 @@ function drawMeta(data) {
           html("code", {}, [data.jinxCommit.slice(0, SHORT_COMMIT)]),
         ])
       : "?",
-    ` · ${machine.host ?? "?"}: ${machine.cores ?? "?"} cores, ${machine.memoryGb ?? "?"} GB, both sides`,
-  ];
-  const nix = timing.nix ?? {};
-  const jinx = timing.jinx ?? {};
-  if (typeof nix.seconds === "number") {
-    parts.push(
-      ` · nix-eval-jobs ${count(nix.seconds)} s (${minutes(nix.seconds)}) with ${nix.workers ?? "?"} workers`,
-    );
-  }
-  if (typeof jinx.seconds === "number") {
-    parts.push(
-      ` · jinx about ${minutes(jinx.seconds).replace(" min", " minutes")}`,
-    );
-    if (
-      typeof jinx.earlierAttributes === "number" &&
-      jinx.earlierAttributes > 0
-    ) {
-      parts.push(
-        ` (${count(jinx.seconds)} s for ${count(jinx.attributes)} attributes; the other ` +
-          `${count(jinx.earlierAttributes)} were evaluated in an earlier part of the run and not re-timed)`,
-      );
-    }
-  }
-  $("meta").replaceChildren(...parts);
+  );
+  // The CI configuration link follows the revision shown.
+  $("ci-config").href =
+    `https://github.com/NixOS/nixpkgs/blob/${data.nixpkgs.rev}/ci/eval/outpaths.nix`;
 }
 
 function drawTiles(summary) {
