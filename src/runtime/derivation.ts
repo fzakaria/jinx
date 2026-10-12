@@ -27,6 +27,7 @@ import {
   forceList,
   forceStr,
   forceStringNoCtx,
+  COERCE_INTERPOLATE,
 } from "./ops.ts";
 import {
   addTextToStore,
@@ -188,7 +189,10 @@ export function derivationStrict(arg: Lazy): Attrs {
       }
       const hooks = {
         applyToString: (a: Attrs) =>
-          forceStr(app(getAttr(a, "__toString") as Lazy, a)),
+          coerceToString(
+            app(getAttr(a, "__toString") as Lazy, a),
+            COERCE_INTERPOLATE,
+          ),
         copyPathToStore: (p: Path) => copyPathToStore(p),
       };
       const { json: text, context: ctx } = toJson(lazyValue, hooks);

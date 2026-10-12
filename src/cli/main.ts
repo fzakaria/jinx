@@ -20,7 +20,12 @@ import { defaultWorkers, evalJobs } from "./eval-jobs.ts";
 import { toJson } from "../runtime/json.ts";
 import { printValue } from "../runtime/print.ts";
 import { copyPathToStore } from "../runtime/store.ts";
-import { app, forceStr } from "../runtime/ops.ts";
+import {
+  app,
+  forceStr,
+  coerceToString,
+  COERCE_INTERPOLATE,
+} from "../runtime/ops.ts";
 import {
   type Attrs,
   type Lazy,
@@ -229,7 +234,10 @@ function evalCmd(
     if (flags.has("json")) {
       const { json } = toJson(v, {
         applyToString: (a: Attrs) =>
-          forceStr(app(getAttr(a, "__toString") as Lazy, a)),
+          coerceToString(
+            app(getAttr(a, "__toString") as Lazy, a),
+            COERCE_INTERPOLATE,
+          ),
         copyPathToStore: (p) => copyPathToStore(p),
       });
       process.stdout.write(json + "\n");

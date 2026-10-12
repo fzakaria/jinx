@@ -243,7 +243,6 @@ function isHashAlgo(s: string): s is HashAlgo {
 // Base-16 and base-64 alphabets, used to reject garbage before decoding
 // because Buffer.from silently skips characters it does not understand.
 const HEX_RE = /^[0-9a-fA-F]*$/;
-const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
 
 function base64EncodedLength(nbytes: number): number {
   return Math.ceil(nbytes / 3) * 4;
@@ -256,11 +255,36 @@ function decodeHex(s: string): Uint8Array {
   return new Uint8Array(Buffer.from(s, "hex"));
 }
 
+// Nix's base64Decode (libutil/base-n.cc): decoding stops at the first
+// `=` and whatever follows is ignored, newlines are skipped, and any
+// other character outside the alphabet is an error. nixpkgs contains a
+// hash with trailing junk after its padding, and Nix accepts it.
+const BASE64_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
 function decodeBase64(s: string): Uint8Array {
-  if (!BASE64_RE.test(s)) {
-    throw new NixError(`invalid base64 hash '${s}'`);
+  const out: number[] = [];
+  let d = 0;
+  let bits = 0;
+  for (const c of s) {
+    if (c === "=") {
+      break;
+    }
+    if (c === "\n") {
+      continue;
+    }
+    const digit = BASE64_ALPHABET.indexOf(c);
+    if (digit < 0) {
+      throw new NixError(`invalid character in Base64 string: '${c}'`);
+    }
+    bits += 6;
+    d = ((d << 6) | digit) >>> 0;
+    if (bits >= 8) {
+      out.push((d >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
   }
-  return new Uint8Array(Buffer.from(s, "base64"));
+  return Uint8Array.from(out);
 }
 
 export function parseHash(

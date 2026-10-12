@@ -721,7 +721,9 @@ def("groupBy", 2, (f, l) => {
   const out: PlainAttrs = {};
   for (const e of forceList(l)) {
     const k = forceStringNoCtx(app(f, e));
-    const bucket = out[k];
+    // hasOwn, not a plain read: a key like `constructor` would otherwise
+    // find Object.prototype's.
+    const bucket = hasOwn(out, k) ? out[k] : undefined;
     if (bucket === undefined) {
       out[k] = [e];
     } else {
@@ -854,7 +856,7 @@ def("zipAttrsWith", 2, (f, l) => {
   for (const e of forceList(l)) {
     const s = forceAttrs(e);
     for (const k of attrKeys(s)) {
-      const bucket = lists[k];
+      const bucket = hasOwn(lists, k) ? lists[k] : undefined;
       if (bucket === undefined) {
         lists[k] = [getAttr(s, k) as Lazy];
       } else {
@@ -898,7 +900,11 @@ def("unsafeGetAttrPos", 2, (name, a) => {
 // JSON / XML
 def("toJSON", 1, (v) => {
   const { json, context } = toJson(v, {
-    applyToString: (a) => forceStr(app(getAttr(a, "__toString") as Lazy, a)),
+    applyToString: (a) =>
+      coerceToString(
+        app(getAttr(a, "__toString") as Lazy, a),
+        COERCE_INTERPOLATE,
+      ),
     copyPathToStore: (p) => copyPathToStore(p),
   });
   return mkString(json, context);

@@ -17,8 +17,14 @@ import {
   isString,
   strValue,
   getAttr,
+  type Attrs,
 } from "../runtime/value.ts";
-import { app, forceStr } from "../runtime/ops.ts";
+import {
+  app,
+  forceStr,
+  coerceToString,
+  COERCE_INTERPOLATE,
+} from "../runtime/ops.ts";
 import { copyPathToStore, pending } from "../runtime/store.ts";
 
 // The file name the snippet is compiled as.
@@ -81,8 +87,11 @@ export function evaluate(typescript: string): EvalResult | Failure {
     let json: string | null = null;
     try {
       json = toJson(value, {
-        applyToString: (a) =>
-          forceStr(app(getAttr(a, "__toString") as Lazy, a)),
+        applyToString: (a: Attrs) =>
+          coerceToString(
+            app(getAttr(a, "__toString") as Lazy, a),
+            COERCE_INTERPOLATE,
+          ),
         copyPathToStore: (p) => copyPathToStore(p),
       }).json;
     } catch {
