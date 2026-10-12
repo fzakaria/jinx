@@ -45,8 +45,13 @@ export interface IndexDir {
 interface Mount {
   readonly path: string;
   readonly url: string;
+  // Where files over BIG_FILE_BYTES are served from, when the main host
+  // has a size limit (jsDelivr stops at 20 MB; GitHub's raw host at 100).
+  readonly bigUrl: string | null;
   readonly index: IndexDir;
 }
+
+const BIG_FILE_BYTES = 20 * 1024 * 1024;
 
 // Mounts in registration order; a lookup takes the first whose path is a
 // prefix of the requested one.
@@ -72,12 +77,75 @@ export function onFetch(cb: (path: string, bytes: number) => void): void {
   fetchListener = cb;
 }
 
+// The part of a fetch Response the prefetch uses. The project compiles
+// without the DOM library, and @types/node's Response is empty once a
+// worker's `onmessage` is declared, so the type is spelled out here.
+interface FetchResponse {
+  readonly ok: boolean;
+  arrayBuffer(): Promise<ArrayBuffer>;
+  json(): Promise<unknown>;
+}
+
+// Fetch many files at once, ahead of the synchronous reads that would
+// otherwise fetch them one round trip at a time. A path that is not in
+// an index, or whose fetch fails, is skipped: the read that needs it
+// fetches it then and reports the error.
+export type { FetchResponse };
+
+export async function prefetch(
+  paths: readonly string[],
+  concurrency: number,
+): Promise<void> {
+  const queue = paths.filter((p) => !contents.has(keyOf(p)));
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < queue.length) {
+      const p = queue[next++]!;
+      const loc = locate(p, FollowSymlinks.Yes);
+      if (loc === null || isDir(loc.entry)) {
+        continue;
+      }
+      try {
+        const res = (await fetch(
+          fileUrl(loc.mount, loc.rel, loc.entry),
+        )) as unknown as FetchResponse;
+        if (!res.ok) {
+          continue;
+        }
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        contents.set(loc.mount.path + "/" + loc.rel.join("/"), bytes);
+        fetchStats.filesFetched++;
+        fetchStats.bytesFetched += bytes.byteLength;
+        if (fetchListener !== null) {
+          fetchListener(p, bytes.byteLength);
+        }
+      } catch {
+        continue;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, worker));
+}
+
+// The content cache key of a path, or the path itself when it is not
+// under a mount (then it is never cached either).
+function keyOf(p: string): string {
+  const loc = locate(p, FollowSymlinks.Yes);
+  return loc === null ? p : loc.mount.path + "/" + loc.rel.join("/");
+}
+
 // Serve `index` (the tree at `url`) at the virtual absolute path `path`.
-export function mount(path: string, url: string, index: IndexDir): void {
+export function mount(
+  path: string,
+  url: string,
+  index: IndexDir,
+  bigUrl: string | null = null,
+): void {
   mounts.push({
     path: path.replace(/\/+$/, ""),
     url: url.replace(/\/+$/, ""),
     index,
+    bigUrl: bigUrl === null ? null : bigUrl.replace(/\/+$/, ""),
   });
 }
 
@@ -100,11 +168,14 @@ export function urlOf(p: string): string {
   if (loc === null) {
     throw missing(p);
   }
-  return fileUrl(loc.mount, loc.rel);
+  return fileUrl(loc.mount, loc.rel, loc.entry);
 }
 
-function fileUrl(m: Mount, rel: string[]): string {
-  return [m.url, ...rel.map(encodeURIComponent)].join("/");
+function fileUrl(m: Mount, rel: string[], entry: IndexEntry): string {
+  const size =
+    typeof entry === "number" ? entry : Array.isArray(entry) ? entry[0] : 0;
+  const base = m.bigUrl !== null && size > BIG_FILE_BYTES ? m.bigUrl : m.url;
+  return [base, ...rel.map(encodeURIComponent)].join("/");
 }
 
 class FsError extends Error {
@@ -340,7 +411,7 @@ function bytesOf(p: string): Uint8Array {
   if (cached !== undefined) {
     return cached;
   }
-  const bytes = fetchSync(fileUrl(loc.mount, loc.rel));
+  const bytes = fetchSync(fileUrl(loc.mount, loc.rel, loc.entry));
   contents.set(key, bytes);
   fetchStats.filesFetched++;
   fetchStats.bytesFetched += bytes.byteLength;

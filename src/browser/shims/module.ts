@@ -12,3 +12,6 @@ export function createRequire(): (p: string) => unknown {
     return m;
   };
 }
+
+// node:module's registerHooks, which the runtime calls only when present.
+export const registerHooks = undefined;

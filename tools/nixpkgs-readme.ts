@@ -54,7 +54,9 @@ const REPORT_ROWS: ReadonlyArray<readonly [string, keyof HistoryEntry]> = [
   ["nix error, jinx ok", "nixError"],
 ];
 
-function readReport(report: string): Omit<HistoryEntry, "date" | "nixpkgs" | "jinx" | "systems"> {
+function readReport(
+  report: string,
+): Omit<HistoryEntry, "date" | "nixpkgs" | "jinx" | "systems"> {
   const counts: Record<string, number> = {};
   for (const line of report.split("\n")) {
     const m = /^\| (.+?) \| (\d+) \|$/.exec(line);
@@ -73,13 +75,17 @@ function readReport(report: string): Omit<HistoryEntry, "date" | "nixpkgs" | "ji
     }
     out[key] = counts[label];
   }
-  return out as unknown as Omit<HistoryEntry, "date" | "nixpkgs" | "jinx" | "systems">;
+  return out as unknown as Omit<
+    HistoryEntry,
+    "date" | "nixpkgs" | "jinx" | "systems"
+  >;
 }
 
 // The last element of an attribute path that is a system: outpaths.nix
 // ends every package's path with one, and the few other paths (such as
 // release-checks) end with a name that is not an <arch>-<os> pair.
-const SYSTEM_PATTERN = /^[a-z0-9_]+-(linux|darwin|freebsd|netbsd|openbsd|windows|none)$/;
+const SYSTEM_PATTERN =
+  /^[a-z0-9_]+-(linux|darwin|freebsd|netbsd|openbsd|windows|none)$/;
 
 // The systems the comparison covered: the last element of every attribute
 // path in joined.tsv, which outpaths.nix names per attribute.
@@ -121,7 +127,10 @@ function jinxLink(rev: string): string {
   return `[${short(rev)}](${JINX_COMMIT_URL}/${rev})`;
 }
 
-function renderReadme(current: HistoryEntry, history: readonly HistoryEntry[]): string {
+function renderReadme(
+  current: HistoryEntry,
+  history: readonly HistoryEntry[],
+): string {
   const oneSided = (e: HistoryEntry) => e.jinxError + e.nixError;
   const historyRows = history
     .map(
@@ -169,8 +178,9 @@ same place in the tree, with a source map beside it pointing back at the
 Nix. \`.jinx/config.json\` names the revision; \`.jinx/runtime/\` is the jinx
 runtime the modules import, so the tree stands alone. \`.jinx/tree-index.json\`
 and \`.jinx/src-index.json\` list every path of the tree and of the nixpkgs
-source, for a reader that fetches files one at a time (jinx.dev's nixpkgs
-page).
+source, \`.jinx/hot.json\` the files evaluating \`hello\` reads, and
+\`.jinx/names.json\` the top-level attribute names, for a reader that
+fetches files one at a time (jinx.dev's nixpkgs page).
 
 The Nix source tree is not in this repository. Put a checkout of the
 revision in \`.jinx/config.json\` at \`./nixpkgs\` (a symlink is fine); the
@@ -201,7 +211,9 @@ if (tree === undefined) {
   process.exit(2);
 }
 
-const config = JSON.parse(readFileSync(join(tree, CONFIG_FILE), "utf8")) as Config;
+const config = JSON.parse(
+  readFileSync(join(tree, CONFIG_FILE), "utf8"),
+) as Config;
 const report = readFileSync(join(tree, REPORT_FILE), "utf8");
 const current: HistoryEntry = {
   date: new Date().toISOString().slice(0, ISO_DATE_LENGTH),
@@ -217,8 +229,13 @@ const historyPath = join(tree, HISTORY_FILE);
 const earlier: HistoryEntry[] = existsSync(historyPath)
   ? (JSON.parse(readFileSync(historyPath, "utf8")) as HistoryEntry[])
   : [];
-const history = [current, ...earlier.filter((e) => e.nixpkgs !== current.nixpkgs)];
+const history = [
+  current,
+  ...earlier.filter((e) => e.nixpkgs !== current.nixpkgs),
+];
 
 writeFileSync(historyPath, `${JSON.stringify(history, null, 2)}\n`);
 writeFileSync(join(tree, README_FILE), renderReadme(current, history));
-process.stderr.write(`${README_FILE}: nixpkgs ${short(current.nixpkgs)}, ${history.length} revisions\n`);
+process.stderr.write(
+  `${README_FILE}: nixpkgs ${short(current.nixpkgs)}, ${history.length} revisions\n`,
+);

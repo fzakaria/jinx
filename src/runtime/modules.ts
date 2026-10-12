@@ -6,7 +6,7 @@
 // and memoised per file, the same as Nix's import.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { createRequire } from "node:module";
+import { createRequire, registerHooks } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Lazy, type Value, NixError, Path, force } from "./value.ts";
@@ -21,6 +21,27 @@ const CONFIG_FILE = "config.json";
 
 // Every compiled tree seen so far, by its out root.
 const trees: Tree[] = [];
+
+// A tree published with --vendor-runtime carries a copy of this runtime
+// under .jinx/runtime, and its modules import that copy. Loaded next to
+// this one it would be a second Thunk class and a second POS symbol, so
+// an import of a vendored runtime file resolves to the same file here.
+// The browser bundle has no hooks and no second copy.
+const RUNTIME_DIR = new URL("./", import.meta.url).href;
+const VENDORED_RUNTIME = "/.jinx/runtime/";
+if (typeof registerHooks === "function") {
+  registerHooks({
+    resolve(specifier, context, nextResolve) {
+      const resolved = nextResolve(specifier, context);
+      const at = resolved.url.indexOf(VENDORED_RUNTIME);
+      if (!resolved.url.startsWith("file:") || at < 0) {
+        return resolved;
+      }
+      const file = resolved.url.slice(at + VENDORED_RUNTIME.length);
+      return { ...resolved, url: RUNTIME_DIR + file };
+    },
+  });
+}
 
 // Register a compiled tree so paths under its source root can be imported.
 export function registerTree(outRoot: string, srcRoot: string): void {

@@ -77,6 +77,15 @@ printf 'nixpkgs\n' > "$out/.gitignore"
 run "$here/tools/index-tree.ts" "$out" "$out/.jinx/tree-index.json" --skip .git --skip nixpkgs
 run "$here/tools/index-tree.ts" "$src" "$out/.jinx/src-index.json"
 
+# The files `hello` reads, which the site's nixpkgs page fetches ahead,
+# and the top-level attribute names, so the page needs no evaluation to
+# complete an attribute.
+"$here/tools/hot-files.sh" "$out" "$src" "$out/.jinx/hot.json"
+names=$(mktemp --suffix=.nix)
+echo "builtins.attrNames (import $out/nixpkgs { system = \"x86_64-linux\"; config = {}; overlays = []; })" > "$names"
+run "$here/src/cli/main.ts" eval "$names" --json --tree "$out" > "$out/.jinx/names.json"
+rm -f "$names"
+
 # The parity report for this revision, and the README written from it.
 if [ -n "$parity" ]; then
   mkdir -p "$out/parity"

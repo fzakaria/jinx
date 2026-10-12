@@ -8,6 +8,10 @@
 const CONFIG_URL = "config.json";
 const WORKER_URL = "../js/nixpkgs-worker.js";
 const INDEX_FILE = "index.json";
+// The files `hello` reads, under the tree, fetched before evaluating.
+const HOT_FILE = ".jinx/hot.json";
+// The top-level attribute names, under the tree.
+const NAMES_FILE = ".jinx/names.json";
 const DEFAULT_SYSTEM = "x86_64-linux";
 
 const HASH_PARAM_ATTR = "attr";
@@ -191,6 +195,43 @@ async function toggleTypescript(ev) {
 
 // ---- suggestions ---------------------------------------------------------
 
+// ---- prefetching ----------------------------------------------------------
+
+// The worker reads files with blocking requests, one at a time, and
+// reports what a module will read next as it loads it. Fetching those
+// here, while the worker is busy, puts them in the HTTP cache for the
+// blocking request that follows. A bounded number run at once; a URL is
+// fetched once.
+const PREFETCH_CONCURRENCY = 12;
+const prefetched = new Set();
+const prefetchQueue = [];
+let prefetching = 0;
+
+function prefetch(urls) {
+  for (const url of urls) {
+    if (prefetched.has(url)) {
+      continue;
+    }
+    prefetched.add(url);
+    prefetchQueue.push(url);
+  }
+  pumpPrefetch();
+}
+
+function pumpPrefetch() {
+  while (prefetching < PREFETCH_CONCURRENCY && prefetchQueue.length > 0) {
+    const url = prefetchQueue.shift();
+    prefetching++;
+    fetch(url)
+      .then((res) => res.arrayBuffer())
+      .catch(() => undefined)
+      .finally(() => {
+        prefetching--;
+        pumpPrefetch();
+      });
+  }
+}
+
 // Top-level attribute names, from the worker once the set is evaluated.
 let names = [];
 let selected = -1;
@@ -285,14 +326,17 @@ function onMessage(ev) {
     case "log":
       appendLog(msg.line);
       break;
+    case "set":
+      showSetTime(msg.millis);
+      break;
+    case "prefetch":
+      prefetch(msg.urls);
+      break;
     case "ready":
       ready = true;
       names = msg.names;
-      showSetTime(msg.millis);
       showActivity(msg);
-      setStatus(
-        `package set ready in ${formatMillis(msg.millis)}: ${names.length} attributes`,
-      );
+      setStatus(`ready: ${names.length} attributes`);
       $("attr").disabled = false;
       $("run").disabled = false;
       $("attr").focus();
@@ -339,6 +383,10 @@ async function start() {
   config.srcUrl = absolute(config.srcUrl);
   const treeIndexUrl = absolute(indexUrl(config.treeUrl, config.treeIndexUrl));
   const srcIndexUrl = absolute(indexUrl(config.srcUrl, config.srcIndexUrl));
+  const hotUrl = absolute(config.hotUrl ?? `${config.treeUrl}/${HOT_FILE}`);
+  const namesUrl = absolute(
+    config.namesUrl ?? `${config.treeUrl}/${NAMES_FILE}`,
+  );
   $("rev").textContent = ` · nixpkgs ${config.rev.slice(0, 7)}`;
 
   worker = new Worker(WORKER_URL, { type: "module" });
@@ -346,13 +394,19 @@ async function start() {
   worker.onerror = (ev) => {
     showError(`worker failed: ${ev.message}`);
   };
-  setStatus("evaluating the package set (the overlay fixpoint, once)…");
+  setStatus("loading…");
   worker.postMessage({
     type: "init",
     treeUrl: config.treeUrl,
     srcUrl: config.srcUrl,
     treeIndexUrl,
     srcIndexUrl,
+    treeBigUrl:
+      config.treeBigUrl === undefined ? undefined : absolute(config.treeBigUrl),
+    srcBigUrl:
+      config.srcBigUrl === undefined ? undefined : absolute(config.srcBigUrl),
+    hotUrl,
+    namesUrl,
     system: config.system ?? DEFAULT_SYSTEM,
   });
 }

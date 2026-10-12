@@ -16,20 +16,29 @@
 //   { type: "eval", attr }
 // Messages out:
 //   { type: "progress", modulesLoaded, filesFetched, bytesFetched, last }
-//   { type: "ready", names, millis, modulesLoaded, filesFetched, bytesFetched }
+//   { type: "ready", names, evaluated, millis, modulesLoaded, filesFetched, bytesFetched }
+//   { type: "set", millis }    the package set was evaluated (once, on first use)
+//   { type: "prefetch", urls } files the evaluation will read next
 //   { type: "result", attr, name, drvPath, outPath, outputs, position, ... }
 //   { type: "error", attr?, error }
 
 import * as nix from "../runtime/index.ts";
 import {
+  type FetchResponse,
   type IndexDir,
   existsSync,
   fetchSync,
   mount,
   onFetch,
+  prefetch,
   stats as fetchStats,
 } from "./shims/fs-remote.ts";
-import { modulesLoaded, onLoad, setRuntime } from "./shims/module-remote.ts";
+import {
+  modulesLoaded,
+  onImports,
+  onLoad,
+  setRuntime,
+} from "./shims/module-remote.ts";
 
 // Where the two trees appear to the runtime. The compiled tree's runtime
 // is at /tree/.jinx/runtime, which is also what the bundle's
@@ -69,7 +78,27 @@ interface InitMessage {
   readonly srcUrl: string;
   readonly treeIndexUrl: string;
   readonly srcIndexUrl: string;
+  // Hosts for files over 20 MB, when treeUrl and srcUrl are a CDN with
+  // that limit; optional.
+  readonly treeBigUrl?: string;
+  readonly srcBigUrl?: string;
+  // The files evaluating `hello` reads (tools/hot-files.sh), fetched in
+  // parallel before the evaluation starts; optional.
+  readonly hotUrl?: string;
+  // The top-level attribute names (tools/publish-nixpkgs.sh writes them
+  // as .jinx/names.json), so the page is usable before the package set
+  // is evaluated; optional, the set is evaluated for them otherwise.
+  readonly namesUrl?: string;
   readonly system?: string;
+}
+
+// Parallel fetches during the prefetch.
+const PREFETCH_CONCURRENCY = 32;
+
+// What .jinx/hot.json holds: paths relative to the tree and to the source.
+interface HotFiles {
+  readonly tree: readonly string[];
+  readonly src: readonly string[];
 }
 
 interface EvalMessage {
@@ -142,10 +171,45 @@ function loadIndex(url: string): IndexDir {
   return JSON.parse(new TextDecoder().decode(bytes)) as IndexDir;
 }
 
-function init(msg: InitMessage): void {
+// Fetch the hot list and its files in parallel; a missing list is not
+// an error, the evaluation just fetches as it goes.
+async function prefetchHot(url: string): Promise<void> {
+  let hot: HotFiles;
+  try {
+    const res = (await fetch(url)) as unknown as FetchResponse;
+    if (!res.ok) {
+      return;
+    }
+    hot = (await res.json()) as HotFiles;
+  } catch {
+    return;
+  }
+  const paths = [
+    ...hot.tree.map((p) => `${TREE_ROOT}/${p}`),
+    ...hot.src.map((p) => `${SRC_ROOT}/${p}`),
+  ];
+  await prefetch(paths, PREFETCH_CONCURRENCY);
+}
+
+async function init(msg: InitMessage): Promise<void> {
   const started = performance.now();
-  mount(TREE_ROOT, msg.treeUrl, loadIndex(msg.treeIndexUrl));
-  mount(SRC_ROOT, msg.srcUrl, loadIndex(msg.srcIndexUrl));
+  mount(
+    TREE_ROOT,
+    msg.treeUrl,
+    loadIndex(msg.treeIndexUrl),
+    msg.treeBigUrl ?? null,
+  );
+  mount(
+    SRC_ROOT,
+    msg.srcUrl,
+    loadIndex(msg.srcIndexUrl),
+    msg.srcBigUrl ?? null,
+  );
+  // The page fetches what a module will read next while this thread is
+  // busy evaluating, so the blocking read that follows hits the cache.
+  onImports(TREE_ROOT, SRC_ROOT, (urls) =>
+    postMessage({ type: "prefetch", urls }),
+  );
   setRuntime(nix);
   // The corepkgs tree first: both are under /tree, and a module is
   // matched to the first registered tree whose root is a prefix of it.
@@ -154,7 +218,42 @@ function init(msg: InitMessage): void {
   nix.settings.currentSystem = msg.system ?? DEFAULT_SYSTEM;
   nix.settings.log = (line) => postMessage({ type: "log", line });
 
-  // import /src { system = ...; config = {}; overlays = []; }
+  let names =
+    msg.namesUrl === undefined ? null : await fetchNames(msg.namesUrl);
+  if (names === null) {
+    names = nix.attrKeys(packageSet()).sort();
+  }
+  postMessage({
+    type: "ready",
+    names,
+    evaluated: pkgs !== null,
+    millis: performance.now() - started,
+    ...activity(),
+  });
+  // After ready, so the page takes input while the files arrive; an
+  // evaluation asked for meanwhile fetches what is still missing itself.
+  if (msg.hotUrl !== undefined) {
+    await prefetchHot(msg.hotUrl);
+    progress(true);
+  }
+}
+
+async function fetchNames(url: string): Promise<string[] | null> {
+  try {
+    const res = (await fetch(url)) as unknown as FetchResponse;
+    return res.ok ? ((await res.json()) as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+// The package set, evaluated on first use:
+// import /src { system = ...; config = {}; overlays = []; }
+function packageSet(): nix.Attrs {
+  if (pkgs !== null) {
+    return pkgs;
+  }
+  const started = performance.now();
   const importFn = nix.getAttr(nix.builtins, "import") as (
     p: nix.Lazy,
   ) => nix.Value;
@@ -165,13 +264,8 @@ function init(msg: InitMessage): void {
     overlays: [],
   });
   pkgs = nix.forceAttrs(set);
-  const names = nix.attrKeys(pkgs).sort();
-  postMessage({
-    type: "ready",
-    names,
-    millis: performance.now() - started,
-    ...activity(),
-  });
+  postMessage({ type: "set", millis: performance.now() - started });
+  return pkgs;
 }
 
 interface Result {
@@ -211,11 +305,8 @@ function positionOf(attr: string, pkg: nix.Attrs): string | null {
 }
 
 function evaluate(attr: string): Result {
-  if (pkgs === null) {
-    throw new Error("the package set has not been evaluated yet");
-  }
   const started = performance.now();
-  const v = nix.sel(pkgs, ...attr.split("."));
+  const v = nix.sel(packageSet(), ...attr.split("."));
   if (!nix.isAttrs(v)) {
     throw new nix.NixError(`'${attr}' is not a derivation`);
   }
@@ -243,7 +334,9 @@ self.onmessage = (ev) => {
   const msg = ev.data;
   try {
     if (msg.type === "init") {
-      init(msg);
+      init(msg).catch((e: unknown) => {
+        postMessage({ type: "error", attr: null, error: describeError(e) });
+      });
       return;
     }
     const result = evaluate(msg.attr);

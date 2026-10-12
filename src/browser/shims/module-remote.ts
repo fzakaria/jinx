@@ -8,7 +8,7 @@
 // too, so `nix.here(import.meta.url)` sees the module's virtual path.
 // Modules are evaluated once and kept, which is what makes `import` lazy
 // and shared, as in Nix.
-import { readFileSync, urlOf } from "./fs-remote.ts";
+import { existsSync, lstatSync, readFileSync, urlOf } from "./fs-remote.ts";
 
 const FILE_URL_PREFIX = "file://";
 const RUNTIME_IMPORT = /^import \* as nix from "[^"]*";\s*$/m;
@@ -41,6 +41,78 @@ export function onLoad(cb: (path: string) => void): void {
 
 type CompiledModule = (rt: unknown, meta: { url: string }) => unknown;
 
+// The relative paths a compiled module names: `nix.path(here, "./x.nix")`
+// for an import, a callPackage argument, a patch or a script.
+const STATIC_PATH = /nix\.path\(here, "(\.\.?\/[^"]*)"\)/g;
+const NIX_SUFFIX = ".nix";
+const MODULE_SUFFIX = ".ts";
+const DEFAULT_MODULE = "default.ts";
+
+// The out root and the source root the modules are mounted at, for
+// turning a source path into its compiled module.
+let roots: { readonly tree: string; readonly src: string } | null = null;
+let importsListener: ((urls: string[]) => void) | null = null;
+
+// Report the URLs a module will read next, so a page can fetch them in
+// parallel into the HTTP cache while the evaluation is busy.
+export function onImports(
+  tree: string,
+  src: string,
+  cb: (urls: string[]) => void,
+): void {
+  roots = { tree, src };
+  importsListener = cb;
+}
+
+function dirname(p: string): string {
+  const slash = p.lastIndexOf("/");
+  return slash <= 0 ? "/" : p.slice(0, slash);
+}
+
+function normalize(p: string): string {
+  const out: string[] = [];
+  for (const part of p.split("/")) {
+    if (part === "" || part === ".") {
+      continue;
+    }
+    if (part === "..") {
+      out.pop();
+      continue;
+    }
+    out.push(part);
+  }
+  return "/" + out.join("/");
+}
+
+// The files the paths named in `text` lead to: a .nix file or a
+// directory means its compiled module, anything else the source file.
+function predictedUrls(modulePath: string, text: string): string[] {
+  if (roots === null || !modulePath.startsWith(roots.tree + "/")) {
+    return [];
+  }
+  const srcDir = roots.src + dirname(modulePath.slice(roots.tree.length));
+  const urls: string[] = [];
+  for (const m of text.matchAll(STATIC_PATH)) {
+    const srcPath = normalize(srcDir + "/" + m[1]!);
+    if (!existsSync(srcPath)) {
+      continue;
+    }
+    const rel = srcPath.slice(roots.src.length);
+    let target: string;
+    if (lstatSync(srcPath).isDirectory()) {
+      target = `${roots.tree}${rel}/${DEFAULT_MODULE}`;
+    } else if (srcPath.endsWith(NIX_SUFFIX)) {
+      target = `${roots.tree}${rel.slice(0, -NIX_SUFFIX.length)}${MODULE_SUFFIX}`;
+    } else {
+      target = srcPath;
+    }
+    if (existsSync(target)) {
+      urls.push(urlOf(target));
+    }
+  }
+  return urls;
+}
+
 function load(p: string): { default: unknown } {
   const cached = modules.get(p);
   if (cached !== undefined) {
@@ -50,6 +122,12 @@ function load(p: string): { default: unknown } {
     throw new Error("internal: module-remote: setRuntime was not called");
   }
   const text = readFileSync(p, "utf8") as string;
+  if (importsListener !== null) {
+    const urls = predictedUrls(p, text);
+    if (urls.length > 0) {
+      importsListener(urls);
+    }
+  }
   const body = text
     .replace(RUNTIME_IMPORT, "")
     .replace(DEFAULT_EXPORT, "return ")
@@ -71,3 +149,6 @@ function load(p: string): { default: unknown } {
 export function createRequire(): (p: string) => unknown {
   return load;
 }
+
+// node:module's registerHooks, which the runtime calls only when present.
+export const registerHooks = undefined;
