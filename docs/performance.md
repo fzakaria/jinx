@@ -93,6 +93,8 @@ Measured on firefox.drvPath, warm, on nyx:
 | V8's young generation at 64 or 128 MB                                          |                                                                                       none |
 | layering sets from 64 attributes instead of 256                                |                                                                           ten times slower |
 | layering from 1024                                                             |                                                                                       none |
+| a two-layer view for a tiny override of a medium set, instead of a copy        |                                                                         ten percent slower |
+| a strict builtin's first argument evaluated in place instead of thunked        |       none; a tenth of all thunks are forced right after creation, so the ceiling is small |
 | the Go TypeScript compiler for the build                                       | type-checks the project in the same time as tsc; the evaluation does not go through either |
 
 ## Where the time goes
@@ -105,7 +107,10 @@ operations, a twentieth building and hashing ATerms, the rest spread
 across forcing and the builtins. A heap profile puts the live memory
 in the flattened package sets and in `updateAttrs`.
 
-What is left to win is in the model: strictness analysis to skip
-thunks the emitter can prove are forced, whole-program resolution of
-`callPackage` sites and `with lib;`, and a startup snapshot of the
-evaluated fixpoint.
+Measured on firefox: 3.1 M thunks are created, 1.3 M ever forced,
+330 k forced as the next thing after their creation; `//` copies
+140,000 small sets, 6 M attributes in all, and flattens a layered set
+97 times. The time is spread over application, `//` and forcing with no
+one lever left in the runtime. What remains is structural: a startup
+snapshot of the evaluated fixpoint, and whole-program resolution of
+`callPackage` sites and `with lib;` in the emitter.
