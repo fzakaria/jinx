@@ -17,6 +17,12 @@ body {
   align-items: start;
 }
 
+/* An image keeps to the column it is in. */
+.doc-body img {
+  max-width: 100%;
+  height: auto;
+}
+
 /* The sidebar rides along on desktop and folds to a plain block above the
    content on narrow screens, where a sticky column would eat the viewport. */
 .doc-nav {
