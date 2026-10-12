@@ -226,9 +226,9 @@ export default { drvPath: hello.drvPath, outPath: hello.outPath };
   {
     id: "ts-mkderivation",
     title: "TypeScript: mkDerivation with defaults",
-    ts: `// A small mkDerivation: a typed options object with defaults, and an
-// attribute computed only if something reads it (\`lazy\`). \`deps\` is a
-// list of derivations; the builder sees their store paths in $deps.
+    ts: `// A small mkDerivation: a typed options object with defaults. \`deps\`
+// is a list of derivations; the builder sees their store paths in $deps.
+// \`lazy\` makes an attribute a thunk, computed when something reads it.
 import { nix, lazy } from "jinx";
 
 interface Package {
@@ -246,14 +246,17 @@ function mkDerivation(p: Package) {
     builder: "/bin/sh",
     args: ["-c", p.script],
     deps: p.deps ?? [],
-    meta: lazy(() => ({ position: "written in the playground" })),
   });
 }
 
 const tool = mkDerivation({ pname: "tool", version: "1.0", script: "echo tool > $out" });
 const app = mkDerivation({ pname: "app", version: "0.1", script: "cat $deps > $out", deps: [tool] });
 
-export default { tool: tool.drvPath, app: app.drvPath };
+export default {
+  tool: tool.drvPath,
+  app: app.drvPath,
+  run: lazy(() => \`\${app.outPath}/bin/app\`),
+};
 `,
   },
 ];
