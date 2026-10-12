@@ -104,6 +104,7 @@ import {
   attrPos,
   derivedAttrs,
   MapPos,
+  Mapped,
   POS,
 } from "./value.ts";
 import { toXml } from "./xml.ts";
@@ -857,15 +858,11 @@ def("catAttrs", 2, (name, l) => {
   }
   return out;
 });
-// Nix gives the result of mapAttrs no positions.
+// Nix gives the result of mapAttrs no positions. The thunks are made on
+// access (Mapped), which is where the eager version spent its memory.
 def("mapAttrs", 2, (f, a) => {
   const s = forceAttrs(a);
-  const out: PlainAttrs = {};
-  for (const k of attrKeys(s)) {
-    const v = getAttr(s, k) as Lazy;
-    out[k] = new Thunk(() => app(f, k, v));
-  }
-  return out;
+  return new Mapped(s, (k, v) => new Thunk(() => app(f, k, v)));
 });
 def("zipAttrsWith", 2, (f, l) => {
   const lists: PlainAttrs = {};

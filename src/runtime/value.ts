@@ -42,7 +42,7 @@ export interface PlainAttrs {
   [POS]?: AttrPos;
 }
 
-export type Attrs = PlainAttrs | Layered;
+export type Attrs = PlainAttrs | Layered | Mapped;
 
 // Where a set's attributes were defined, for builtins.unsafeGetAttrPos,
 // which nixpkgs reads for meta.position. A set carries its positions
@@ -150,6 +150,9 @@ export function posOf(a: Attrs): AttrPos | null {
   if (a instanceof Layered) {
     return a.positions();
   }
+  if (a instanceof Mapped) {
+    return null;
+  }
   return a[POS] ?? null;
 }
 
@@ -166,6 +169,9 @@ export function attrPos(a: Attrs, name: string): Pos | null {
     return hasAttr(a.over, name)
       ? attrPos(a.over, name)
       : attrPos(a.base, name);
+  }
+  if (a instanceof Mapped) {
+    return null;
   }
   const pos = a[POS];
   return pos === undefined ? null : pos.lookup(name);
@@ -207,7 +213,7 @@ export class Layered {
       }
       a = a.base;
     }
-    return hasOwn(a, name) ? a[name] : undefined;
+    return getAttr(a, name);
   }
 
   has(name: string): boolean {
@@ -226,7 +232,7 @@ export class Layered {
       overs.push(a.over);
       a = a.base;
     }
-    const flat: PlainAttrs = { ...(a instanceof Layered ? a.flat! : a) };
+    const flat: PlainAttrs = { ...toPlain(a) };
     for (let i = overs.length - 1; i >= 0; i--) {
       Object.assign(flat, toPlain(overs[i]!));
     }
@@ -258,29 +264,93 @@ const MAX_LAYERS = 16;
 // cheaper than a layer.
 const LAYER_THRESHOLD = 256;
 
+// builtins.mapAttrs without a thunk per attribute up front. nixpkgs
+// maps over whole package sets (makeScope, overrideScope, the language
+// package sets), and the eager version was a quarter of the live heap of
+// a firefox evaluation. An attribute's thunk is made on first access and
+// kept, which is the sharing Nix's thunks have.
+export class Mapped {
+  readonly base: Attrs;
+  private readonly make: (name: string, value: Lazy) => Lazy;
+  private readonly made = new Map<string, Lazy>();
+  private flat: PlainAttrs | null = null;
+
+  constructor(base: Attrs, make: (name: string, value: Lazy) => Lazy) {
+    this.base = base;
+    this.make = make;
+  }
+
+  get(name: string): Lazy | undefined {
+    if (this.flat !== null) {
+      return hasOwn(this.flat, name) ? this.flat[name] : undefined;
+    }
+    const have = this.made.get(name);
+    if (have !== undefined) {
+      return have;
+    }
+    const v = getAttr(this.base, name);
+    if (v === undefined) {
+      return undefined;
+    }
+    const t = this.make(name, v);
+    this.made.set(name, t);
+    return t;
+  }
+
+  has(name: string): boolean {
+    return this.flat !== null
+      ? hasOwn(this.flat, name)
+      : hasAttr(this.base, name);
+  }
+
+  keys(): string[] {
+    return this.flat !== null ? Object.keys(this.flat) : attrKeys(this.base);
+  }
+
+  // Every attribute's thunk, made now; computed once and kept.
+  flatten(): PlainAttrs {
+    if (this.flat !== null) {
+      return this.flat;
+    }
+    const flat: PlainAttrs = {};
+    for (const k of attrKeys(this.base)) {
+      flat[k] = this.get(k)!;
+    }
+    this.flat = flat;
+    return flat;
+  }
+
+  get isEmpty(): boolean {
+    return isEmptyAttrs(this.base);
+  }
+}
+
 // The lazy value of an attribute, or undefined when absent.
 export function getAttr(a: Attrs, name: string): Lazy | undefined {
-  if (a instanceof Layered) {
+  if (a instanceof Layered || a instanceof Mapped) {
     return a.get(name);
   }
   return hasOwn(a, name) ? a[name] : undefined;
 }
 
 export function hasAttr(a: Attrs, name: string): boolean {
-  if (a instanceof Layered) {
+  if (a instanceof Layered || a instanceof Mapped) {
     return a.has(name);
   }
   return hasOwn(a, name);
 }
 
 // The plain object holding every attribute: the set itself, or a layered
-// set flattened.
+// or mapped set flattened.
 export function toPlain(a: Attrs): PlainAttrs {
-  return a instanceof Layered ? a.flatten() : a;
+  return a instanceof Layered || a instanceof Mapped ? a.flatten() : a;
 }
 
 // Attribute names in no particular order.
 export function attrKeys(a: Attrs): string[] {
+  if (a instanceof Mapped) {
+    return a.keys();
+  }
   return Object.keys(toPlain(a));
 }
 
@@ -289,6 +359,9 @@ export function attrKeys(a: Attrs): string[] {
 const sizes = new WeakMap<PlainAttrs, number>();
 
 export function attrCount(a: Attrs): number {
+  if (a instanceof Mapped) {
+    return attrCount(a.base);
+  }
   const p = toPlain(a);
   let n = sizes.get(p);
   if (n === undefined) {
@@ -302,7 +375,7 @@ export function attrCount(a: Attrs): number {
 }
 
 export function isEmptyAttrs(a: Attrs): boolean {
-  if (a instanceof Layered) {
+  if (a instanceof Layered || a instanceof Mapped) {
     return a.isEmpty;
   }
   for (const _ in a) {
@@ -335,7 +408,7 @@ export function updateAttrs(x: Attrs, y: Attrs): Attrs {
   if (isLargeAttrs(x)) {
     return new Layered(x, y);
   }
-  return { ...x, ...toPlain(y), [POS]: new MergedPos(x, y) };
+  return { ...toPlain(x), ...toPlain(y), [POS]: new MergedPos(x, y) };
 }
 
 export interface Formals {
@@ -488,7 +561,7 @@ export function isAttrs(v: Value): v is Attrs {
   if (typeof v !== "object" || v === null) {
     return false;
   }
-  if (v instanceof Layered) {
+  if (v instanceof Layered || v instanceof Mapped) {
     return true;
   }
   const proto: unknown = Object.getPrototypeOf(v);

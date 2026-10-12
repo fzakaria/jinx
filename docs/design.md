@@ -92,9 +92,16 @@ operands, with lookups walking the layers from the top
 (`src/runtime/value.ts`). A chain is flattened into one plain object
 when it passes 16 layers or when something enumerates it, and the flat
 set is kept. Every reader goes through `getAttr`, `hasAttr` and
-`attrKeys`, so the two representations are one thing to the rest of the
+`attrKeys`, so the representations are one thing to the rest of the
 runtime and to emitted code. On a 66-package sample this halved the
 evaluation time.
+
+`mapAttrs` over a large set is a `Mapped` view by the same mechanism:
+the attribute's thunk is made on first access and kept, instead of one
+thunk and closure per attribute up front. nixpkgs maps over whole
+package sets in `makeScope`, `overrideScope` and the language package
+sets, and the eager version was a quarter of the live heap of a firefox
+evaluation.
 
 ## Where thunks go
 

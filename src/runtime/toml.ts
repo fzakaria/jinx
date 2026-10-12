@@ -26,6 +26,7 @@ import {
   hasAttr,
   toPlain,
   Layered,
+  Mapped,
   type PlainAttrs,
 } from "./value.ts";
 import type { Lazy, Value } from "./value.ts";
@@ -985,5 +986,5 @@ export function fromToml(text: string): PlainAttrs {
 // TOML tables are always plain sets; a layered set never comes from the
 // parser.
 function isTable(v: Value): v is PlainAttrs {
-  return isAttrs(v) && !(v instanceof Layered);
+  return isAttrs(v) && !(v instanceof Layered) && !(v instanceof Mapped);
 }
