@@ -9,10 +9,11 @@ work on it.
 `node --cpu-prof` on `firefox.drvPath`, folded through the source maps
 so every frame is a line of nixpkgs:
 
-[![A flame graph of evaluating firefox.drvPath, every frame a nixpkgs line](./flamegraph-firefox.svg)](./flamegraph-firefox.svg)
+[![The top of a flame graph of evaluating firefox.drvPath, every frame a nixpkgs line](./flamegraph-firefox.png)](./flamegraph-firefox.svg)
 
-Open the graph itself to zoom and to hover a frame for its share. The
-widest frames are `lib.makeOverridable`
+<p class="muted">The top of the graph. Click it for the whole SVG, with zoom and a share on hover.</p>
+
+The widest frames are `lib.makeOverridable`
 in `lib/customisation.nix` and the firefox wrapper, and the module
 system's `make-derivation.nix`. `pandoc` under the wrapper is a tenth of
 the run: that is where `hackage-packages.nix` gets loaded.
