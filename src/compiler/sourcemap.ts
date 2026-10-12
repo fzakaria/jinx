@@ -116,3 +116,51 @@ export function encodeSourceMap(
     mappings: lines.join(";"),
   });
 }
+
+// A decoded segment: where a generated position came from, zero-based.
+export interface Mapping {
+  readonly generatedLine: number;
+  readonly generatedColumn: number;
+  readonly sourceLine: number;
+  readonly sourceColumn: number;
+}
+
+const BASE64_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const VLQ_CONTINUATION = 32;
+const VLQ_MASK = 31;
+
+// Decode a map's `mappings` field. Every segment of a jinx map names the
+// one source, so the source index is skipped.
+export function decodeMappings(encoded: string): Mapping[] {
+  const out: Mapping[] = [];
+  let sourceLine = 0;
+  let sourceColumn = 0;
+  encoded.split(";").forEach((line, generatedLine) => {
+    let generatedColumn = 0;
+    for (const segment of line.split(",")) {
+      if (segment === "") {
+        continue;
+      }
+      const fields: number[] = [];
+      let value = 0;
+      let shift = 0;
+      for (const c of segment) {
+        const digit = BASE64_ALPHABET.indexOf(c);
+        value += (digit & VLQ_MASK) << shift;
+        if (digit & VLQ_CONTINUATION) {
+          shift += 5;
+          continue;
+        }
+        fields.push(value & 1 ? -(value >> 1) : value >> 1);
+        value = 0;
+        shift = 0;
+      }
+      generatedColumn += fields[0] ?? 0;
+      sourceLine += fields[2] ?? 0;
+      sourceColumn += fields[3] ?? 0;
+      out.push({ generatedLine, generatedColumn, sourceLine, sourceColumn });
+    }
+  });
+  return out;
+}

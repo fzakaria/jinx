@@ -46,6 +46,7 @@ $ nix-instantiate --eval --strict hello.nix
 ```
 
 **Documentation:** [Usage](./docs/usage.md) ·
+[Why](./docs/why.md) ·
 [Design](./docs/design.md) ·
 [Semantics](./docs/semantics.md) ·
 [Verification](./docs/verification.md) ·

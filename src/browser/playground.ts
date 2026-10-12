@@ -5,6 +5,7 @@
 // errors, and derivations are computed, not written.
 
 import { emit } from "../compiler/emit.ts";
+import { decodeMappings, type Mapping } from "../compiler/sourcemap.ts";
 import { parse } from "../syntax/parser.ts";
 import * as nix from "../runtime/index.ts";
 import * as lib from "../lib/view.ts";
@@ -35,15 +36,6 @@ const SNIPPET_DIR = "/playground";
 const SNIPPET_FILE = `${SNIPPET_DIR}/default.nix`;
 nix.registerTree(SNIPPET_DIR, SNIPPET_DIR);
 
-// One source-map segment: where a Nix expression starts in the Nix and
-// where its TypeScript starts. All positions are zero-based.
-export interface Mapping {
-  readonly generatedLine: number;
-  readonly generatedColumn: number;
-  readonly sourceLine: number;
-  readonly sourceColumn: number;
-}
-
 export interface CompileResult {
   readonly ok: true;
   readonly typescript: string;
@@ -53,44 +45,6 @@ export interface CompileResult {
 // The map is produced in Source Map v3 form; the page wants segments.
 const MAP_URL = "default.ts.map";
 const MAP_TRAILER = /\/\/# sourceMappingURL=[^\n]*\n?$/;
-const BASE64 =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-const VLQ_CONTINUATION = 32;
-const VLQ_MASK = 31;
-
-function decodeMappings(encoded: string): Mapping[] {
-  const out: Mapping[] = [];
-  let sourceLine = 0;
-  let sourceColumn = 0;
-  encoded.split(";").forEach((line, generatedLine) => {
-    let generatedColumn = 0;
-    for (const segment of line.split(",")) {
-      if (segment === "") {
-        continue;
-      }
-      const fields: number[] = [];
-      let value = 0;
-      let shift = 0;
-      for (const c of segment) {
-        const digit = BASE64.indexOf(c);
-        value += (digit & VLQ_MASK) << shift;
-        if (digit & VLQ_CONTINUATION) {
-          shift += 5;
-          continue;
-        }
-        fields.push(value & 1 ? -(value >> 1) : value >> 1);
-        value = 0;
-        shift = 0;
-      }
-      generatedColumn += fields[0] ?? 0;
-      sourceLine += fields[2] ?? 0;
-      sourceColumn += fields[3] ?? 0;
-      out.push({ generatedLine, generatedColumn, sourceLine, sourceColumn });
-    }
-  });
-  return out;
-}
-
 export interface Failure {
   readonly ok: false;
   readonly error: string;
