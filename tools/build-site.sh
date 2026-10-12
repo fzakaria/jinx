@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build the site's generated parts in place, for local work on it: the
-# browser bundle at site/js/jinx.js (over the checked-in stub) and the
-# rendered docs at site/docs/. The same esbuild and render-docs.py
+# browser bundle at site/js/jinx.js (over the checked-in stub), the
+# nixpkgs worker at site/js/nixpkgs-worker.js and the rendered docs at
+# site/docs/. The same esbuild and render-docs.py
 # invocations as nix/site.nix. Serve site/ with any static server
 # afterwards (python3 -m http.server from site/), or `nix run .#serve`
 # for the nix-built tree.
@@ -40,6 +41,23 @@ with esbuild esbuild -- esbuild src/browser/playground.ts \
   --alias:node:module=./src/browser/shims/module.ts \
   --alias:node:crypto=./src/browser/shims/crypto.ts \
   --inject:./src/browser/shims/buffer.ts \
+  "$@"
+
+# The nixpkgs worker (site/nixpkgs/): the same runtime, with the
+# filesystem served over HTTP (fs-remote) and compiled modules fetched by
+# require() (module-remote). The bundle stands in for the compiled tree's
+# vendored runtime, so its import.meta.url is defined as that runtime's
+# virtual path: the corepkgs resolve next to it (src/runtime/builtins.ts).
+with esbuild esbuild -- esbuild src/browser/nixpkgs-worker.ts \
+  --bundle --format=esm --platform=browser --target=es2022 \
+  --outfile=site/js/nixpkgs-worker.js \
+  --alias:node:fs=./src/browser/shims/fs-remote.ts \
+  --alias:node:path=./src/browser/shims/path.ts \
+  --alias:node:url=./src/browser/shims/url.ts \
+  --alias:node:module=./src/browser/shims/module-remote.ts \
+  --alias:node:crypto=./src/browser/shims/crypto.ts \
+  --inject:./src/browser/shims/buffer.ts \
+  '--define:import.meta.url="file:///tree/.jinx/runtime/index.ts"' \
   "$@"
 
 # The docs need cmark-gfm and a python that can import pygments. The dev

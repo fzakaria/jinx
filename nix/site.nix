@@ -5,6 +5,8 @@
 #   js/                                      the page's modules
 #   js/jinx.js                               the compiler and the runtime,
 #                                            bundled by esbuild for the browser
+#   js/nixpkgs-worker.js                     the runtime over an HTTP-served
+#                                            tree, for nixpkgs/ (a worker)
 #   docs/                                    docs/*.md rendered to HTML
 #
 # The bundle is src/browser/playground.ts with node's fs, path, url, module
@@ -65,6 +67,19 @@ pkgs.runCommand "jinx-site" { nativeBuildInputs = [ pkgs.esbuild ]; } ''
     --alias:node:module=./src/browser/shims/module.ts \
     --alias:node:crypto=./src/browser/shims/crypto.ts \
     --inject:./src/browser/shims/buffer.ts
+
+  # The nixpkgs worker (site/nixpkgs/): the same runtime over a
+  # filesystem served by HTTP; see tools/build-site.sh for the define.
+  esbuild src/browser/nixpkgs-worker.ts \
+    --bundle --format=esm --platform=browser --target=es2022 \
+    --outfile=$out/js/nixpkgs-worker.js \
+    --alias:node:fs=./src/browser/shims/fs-remote.ts \
+    --alias:node:path=./src/browser/shims/path.ts \
+    --alias:node:url=./src/browser/shims/url.ts \
+    --alias:node:module=./src/browser/shims/module-remote.ts \
+    --alias:node:crypto=./src/browser/shims/crypto.ts \
+    --inject:./src/browser/shims/buffer.ts \
+    '--define:import.meta.url="file:///tree/.jinx/runtime/index.ts"'
 
   # The output path is known before building, so the page and the docs can
   # name the very store path they are served out of (a benign

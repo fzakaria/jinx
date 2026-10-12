@@ -13,6 +13,16 @@
 
 const INDEX_ENTRY_EXECUTABLE_LENGTH = 1;
 
+// The one browser API this shim needs, declared here since the project
+// is type-checked against node's globals, not a browser's.
+declare class XMLHttpRequest {
+  responseType: string;
+  readonly status: number;
+  readonly response: unknown;
+  open(method: string, url: string, async: boolean): void;
+  send(): void;
+}
+
 // Mode bits as lstat reports them, for nar.ts's executable check and
 // anything that inspects st.mode.
 const MODE_FILE = 0o100644;
@@ -125,6 +135,10 @@ interface Located {
   readonly entry: IndexEntry;
 }
 
+function isDir(entry: IndexEntry): entry is IndexDir {
+  return typeof entry === "object" && !Array.isArray(entry);
+}
+
 function segmentsOf(p: string): string[] {
   const out: string[] = [];
   for (const seg of p.split("/")) {
@@ -171,9 +185,6 @@ function locate(p: string, follow: FollowSymlinks): Located | null {
     let redirected = false;
     for (let i = 0; i < rel.length; i++) {
       const name = rel[i]!;
-      if (typeof dir !== "object") {
-        return null;
-      }
       if (!Object.hasOwn(dir, name)) {
         return null;
       }
@@ -200,7 +211,11 @@ function locate(p: string, follow: FollowSymlinks): Located | null {
         redirected = true;
         break;
       }
-      if (typeof entry === "object") {
+      // A file in the middle of a path: nothing is under it.
+      if (!last && !isDir(entry)) {
+        return null;
+      }
+      if (isDir(entry)) {
         dir = entry;
       }
     }
@@ -297,7 +312,7 @@ export function readdirSync(p: string): string[] {
   if (loc === null) {
     throw missing(p);
   }
-  if (typeof loc.entry !== "object") {
+  if (!isDir(loc.entry)) {
     throw new FsError("ENOTDIR", `ENOTDIR: not a directory, scandir '${p}'`);
   }
   return Object.keys(loc.entry).sort();
@@ -311,7 +326,7 @@ function bytesOf(p: string): Uint8Array {
   if (loc === null) {
     throw missing(p);
   }
-  if (typeof loc.entry === "object") {
+  if (isDir(loc.entry)) {
     throw new FsError("EISDIR", `EISDIR: illegal operation on a directory, read '${p}'`);
   }
   const key = loc.mount.path + "/" + loc.rel.join("/");

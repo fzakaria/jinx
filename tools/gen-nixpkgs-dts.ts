@@ -342,7 +342,8 @@ interface LibDocs {
 const LIB_DIR = "lib";
 const LIB_TESTS_DIR = "tests";
 const NIX_EXT = ".nix";
-const CALL_LIBS_RE = /^\s*([A-Za-z_][A-Za-z0-9_'-]*)\s*=\s*callLibs\s+(\.\/[^;\s]+)\s*;/gm;
+const CALL_LIBS_RE =
+  /^\s*([A-Za-z_][A-Za-z0-9_'-]*)\s*=\s*callLibs\s+(\.\/[^;\s]+)\s*;/gm;
 
 function nixFilesUnder(dir: string): string[] {
   const out: string[] = [];
@@ -389,7 +390,9 @@ function loadLibDocs(nixpkgs: string): LibDocs {
   for (const m of defaultNix.matchAll(CALL_LIBS_RE)) {
     const rel = m[2]!;
     const target = resolve(libDir, rel);
-    const file = target.endsWith(NIX_EXT) ? target : join(target, "default.nix");
+    const file = target.endsWith(NIX_EXT)
+      ? target
+      : join(target, "default.nix");
     fileOfSubset.set(m[1]!, file);
   }
   return { byFile, byName, fileOfSubset };
@@ -739,7 +742,11 @@ class Generator {
   // The doc entry for a lib function: a same-named entry whose function
   // is this one, else any entry for this function, else the first entry
   // with this name in any lib file.
-  private docFor(fn: object, key: string, path: readonly string[]): DocEntry | undefined {
+  private docFor(
+    fn: object,
+    key: string,
+    path: readonly string[],
+  ): DocEntry | undefined {
     if (path[0] !== "lib") {
       return undefined;
     }
@@ -750,7 +757,8 @@ class Generator {
     const subset = path.length === 3 ? path[1] : undefined;
     if (subset !== undefined) {
       const file = this.docs.fileOfSubset.get(subset);
-      const entry = file === undefined ? undefined : this.docs.byFile.get(file)?.get(key);
+      const entry =
+        file === undefined ? undefined : this.docs.byFile.get(file)?.get(key);
       if (entry !== undefined) {
         return entry;
       }
@@ -758,7 +766,11 @@ class Generator {
     return this.docs.byName.get(key);
   }
 
-  private functionMember(fn: Lambda, key: string, path: readonly string[]): string {
+  private functionMember(
+    fn: Lambda,
+    key: string,
+    path: readonly string[],
+  ): string {
     if (key === MK_DERIVATION) {
       return `${INDENT}${quoteKey(key)}(args: ${MK_DERIVATION_ARGS}): ${DERIVATION};\n`;
     }
@@ -811,7 +823,11 @@ class Generator {
   // from makeOverridable. Its formals are in `__functionArgs` when
   // setFunctionArgs put them there, else on the function the functor
   // yields for `self`.
-  private callableMember(set: Attrs, key: string, path: readonly string[]): string {
+  private callableMember(
+    set: Attrs,
+    key: string,
+    path: readonly string[],
+  ): string {
     this.stats.setCallable++;
     let formals: Formals | undefined;
     const argsLazy = getAttr(set, FUNCTION_ARGS);
@@ -881,7 +897,10 @@ class Generator {
   // recurseForDerivations, it is well known, or it lives under lib.
   private recursable(v: Attrs, path: readonly string[]): boolean {
     const dotted = path.join(".");
-    if (WELL_KNOWN_SETS.has(dotted) || WELL_KNOWN_SETS.has(path[path.length - 1]!)) {
+    if (
+      WELL_KNOWN_SETS.has(dotted) ||
+      WELL_KNOWN_SETS.has(path[path.length - 1]!)
+    ) {
       return true;
     }
     if (path[0] === "lib") {

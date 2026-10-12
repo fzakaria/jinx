@@ -43,6 +43,23 @@ in
     exec ${./../tools/parity.sh} "$@"
   '';
 
+  # Time Nix and jinx evaluating the same probes and append the record to
+  # site/bench/history.json, which the site's benchmark page draws
+  # (docs/performance.md). The installed jinx is the evaluator measured;
+  # GNU time is the instrument. Run from the repository root: the history
+  # file and the commit id are taken relative to it.
+  bench =
+    tool "jinx-bench"
+      [
+        pkgs.nix
+        pkgs.nodejs_24
+        pkgs.time
+        pkgs.git
+      ]
+      ''
+        exec node ${./../tools/bench.ts} --jinx ${jinx}/bin/jinx "$@"
+      '';
+
   # Serve the built site, the tree the pages workflow deploys, on
   # http://localhost:8137 (`nix run .#serve -- <port>` for another). The
   # module tree, the bundle and the docs are plain static files, so this is

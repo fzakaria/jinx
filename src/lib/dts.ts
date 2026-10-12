@@ -236,7 +236,10 @@ function parseDocBlock(name: string, body: string): DocEntry {
 }
 
 // The content of the first ``` fence at or after `start`, on one line.
-function fencedBlockAfter(lines: readonly string[], start: number): string | null {
+function fencedBlockAfter(
+  lines: readonly string[],
+  start: number,
+): string | null {
   let k = start;
   while (k < lines.length && !lines[k]!.startsWith(FENCE)) {
     // Another heading before any fence: the section has no code block.
@@ -713,7 +716,9 @@ class Renderer {
         return `${this.render(t.elem, polarity, "nested")}[]`;
       case "union": {
         const parts = t.members.map((m) => this.render(m, polarity, "nested"));
-        return inside === "nested" ? `(${parts.join(" | ")})` : parts.join(" | ");
+        return inside === "nested"
+          ? `(${parts.join(" | ")})`
+          : parts.join(" | ");
       }
       case "fn": {
         const name = this.nestedParamName(t.from);
@@ -769,7 +774,9 @@ class Renderer {
       // Declared fields must be assignable to the index signature, so an
       // open record with named fields falls back to `unknown` values.
       const restType =
-        t.fields.length === 0 ? this.render(t.rest, polarity, "top") : "unknown";
+        t.fields.length === 0
+          ? this.render(t.rest, polarity, "top")
+          : "unknown";
       parts.push(`[key: string]: ${restType}`);
     }
     if (parts.length === 0) {

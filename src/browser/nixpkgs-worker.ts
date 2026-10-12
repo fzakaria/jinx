@@ -23,6 +23,7 @@
 import * as nix from "../runtime/index.ts";
 import {
   type IndexDir,
+  existsSync,
   fetchSync,
   mount,
   onFetch,
@@ -40,8 +41,21 @@ const COREPKGS_OUT = `${TREE_ROOT}/.jinx/corepkgs`;
 const COREPKGS_SRC = `${TREE_ROOT}/.jinx/runtime/corepkgs`;
 
 const DEFAULT_SYSTEM = "x86_64-linux";
+
+// Where a top-level attribute's definition is when it follows the
+// pkgs/by-name convention: pkgs/by-name/<first two letters>/<name>/package.nix.
+const BY_NAME_DIR = "pkgs/by-name";
+const BY_NAME_SHARD_LENGTH = 2;
+const BY_NAME_FILE = "package.nix";
 const PROGRESS_INTERVAL_MS = 100;
 const STACK_LINES_REPORTED = 12;
+
+// The worker globals this file uses, declared here since the project is
+// type-checked against node's globals, not a browser's.
+declare function postMessage(message: unknown): void;
+declare const self: {
+  onmessage: ((ev: { readonly data: Incoming }) => void) | null;
+};
 
 // A runtime that has no `process` must not trip the few places the
 // runtime consults it; every one is guarded, but a defined one is safer.
@@ -177,23 +191,23 @@ function str(v: nix.Lazy): string {
 }
 
 // meta.position is "<abs file>:<line>"; the page wants it relative to the
-// nixpkgs root.
-function positionOf(pkg: nix.Attrs): string | null {
+// nixpkgs root. The runtime does not record attribute positions yet
+// (builtins.unsafeGetAttrPos is null), so for a top-level attribute the
+// pkgs/by-name file of that name, when there is one, stands in.
+function positionOf(attr: string, pkg: nix.Attrs): string | null {
   const meta = nix.getAttr(pkg, "meta");
-  if (meta === undefined) {
+  const m = meta === undefined ? null : nix.force(meta);
+  const pos = m !== null && nix.isAttrs(m) ? nix.getAttr(m, "position") : undefined;
+  if (pos !== undefined && nix.force(pos) !== null) {
+    const p = str(pos);
+    const prefix = `${SRC_ROOT}/`;
+    return p.startsWith(prefix) ? p.slice(prefix.length) : p;
+  }
+  if (attr.includes(".")) {
     return null;
   }
-  const m = nix.force(meta);
-  if (!nix.isAttrs(m)) {
-    return null;
-  }
-  const pos = nix.getAttr(m, "position");
-  if (pos === undefined) {
-    return null;
-  }
-  const p = str(pos);
-  const prefix = `${SRC_ROOT}/`;
-  return p.startsWith(prefix) ? p.slice(prefix.length) : p;
+  const byName = `${BY_NAME_DIR}/${attr.slice(0, BY_NAME_SHARD_LENGTH)}/${attr}/${BY_NAME_FILE}`;
+  return existsSync(`${SRC_ROOT}/${byName}`) ? byName : null;
 }
 
 function evaluate(attr: string): Result {
@@ -220,12 +234,12 @@ function evaluate(attr: string): Result {
     drvPath,
     outPath,
     outputs,
-    position: positionOf(v),
+    position: positionOf(attr, v),
     millis: performance.now() - started,
   };
 }
 
-self.onmessage = (ev: MessageEvent<Incoming>) => {
+self.onmessage = (ev) => {
   const msg = ev.data;
   try {
     if (msg.type === "init") {

@@ -209,7 +209,7 @@ export interface LoadOptions {
 
 // Import a Nix file and view its value, called with `args` if it is a
 // function.
-export function load(file: string, opts: LoadOptions = {}): View {
+export function load<T = View>(file: string, opts: LoadOptions = {}): T {
   setup({
     outRoot: opts.cache ?? DEFAULT_CACHE,
     trees: opts.tree === undefined ? [] : [opts.tree],
@@ -226,7 +226,9 @@ export function load(file: string, opts: LoadOptions = {}): View {
 // `load` for nixpkgs: the same import, with nixpkgs' arguments (system,
 // config, overlays) filled in the way Hydra fills them unless given.
 // Sugar now; the place a typed view of the package set will attach.
-export function loadNixpkgs(dir: string, opts: LoadOptions = {}): View {
+// `loadNixpkgs<Nixpkgs>(...)` with the declarations from
+// tools/gen-nixpkgs-dts.ts gives completions and checks on `pkgs.`.
+export function loadNixpkgs<T = View>(dir: string, opts: LoadOptions = {}): T {
   const system = opts.system ?? settings.currentSystem;
   return load(dir, {
     ...opts,

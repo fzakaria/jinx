@@ -129,7 +129,8 @@ const LIB_SIGNATURES: ReadonlyArray<readonly [string, string]> = [
     "<Gvariant>(arg1: unknown) => (arg2: unknown) => Gvariant",
   ],
   // A bare type without the `name ::` prefix.
-  ["(a -> bool) -> [a] -> { right :: [a]; wrong :: [a]; }",
+  [
+    "(a -> bool) -> [a] -> { right :: [a]; wrong :: [a]; }",
     "<A>(arg1: (a: A) => boolean) => (arg2: A[]) => { right: A[]; wrong: A[] }",
   ],
 ];
@@ -195,7 +196,12 @@ test("renderMethod emits curried and uncurried overloads with JSDoc", () => {
     "sep",
     "list",
   ]);
-  const out = renderMethod("concatStringsSep", sig, ["Concatenate a list of strings with a separator."], INDENT);
+  const out = renderMethod(
+    "concatStringsSep",
+    sig,
+    ["Concatenate a list of strings with a separator."],
+    INDENT,
+  );
   assert.equal(
     out,
     [
@@ -207,7 +213,12 @@ test("renderMethod emits curried and uncurried overloads with JSDoc", () => {
       "",
     ].join("\n"),
   );
-  const single = renderMethod("isDerivation", translate("isDerivation :: Any -> Bool"), [], INDENT);
+  const single = renderMethod(
+    "isDerivation",
+    translate("isDerivation :: Any -> Bool"),
+    [],
+    INDENT,
+  );
   assert.equal(single, "  isDerivation(arg1: unknown): boolean;\n");
 });
 
@@ -220,8 +231,14 @@ test("renderMethod quotes names and carries generics", () => {
     "list",
   ]);
   const out = renderMethod("foldl'", sig, [], INDENT);
-  assert.match(out, /^ {2}"foldl'"<Acc, X>\(op: \(acc: Acc\) => \(x: X\) => Acc\): \(acc: Acc\) => \(list: X\[\]\) => Acc;$/m);
-  assert.match(out, /^ {2}"foldl'"<Acc, X>\(op: .*, acc: Acc, list: X\[\]\): Acc;$/m);
+  assert.match(
+    out,
+    /^ {2}"foldl'"<Acc, X>\(op: \(acc: Acc\) => \(x: X\) => Acc\): \(acc: Acc\) => \(list: X\[\]\) => Acc;$/m,
+  );
+  assert.match(
+    out,
+    /^ {2}"foldl'"<Acc, X>\(op: .*, acc: Acc, list: X\[\]\): Acc;$/m,
+  );
 });
 
 // Checks the fallback used when a function has no documented type: its
@@ -250,8 +267,15 @@ test("signatureFromFormals types a set pattern and a bare lambda", () => {
     renderFunctionType(primop),
     "(arg1: unknown) => (arg2: unknown) => (arg3: unknown) => unknown",
   );
-  const empty = signatureFromFormals({ args: {}, ellipsis: false }, 1, "unknown");
-  assert.equal(renderFunctionType(empty), "(args: Record<string, unknown>) => unknown");
+  const empty = signatureFromFormals(
+    { args: {}, ellipsis: false },
+    1,
+    "unknown",
+  );
+  assert.equal(
+    renderFunctionType(empty),
+    "(args: Record<string, unknown>) => unknown",
+  );
 });
 
 // Checks property-key quoting: identifiers and reserved words stay bare,
@@ -378,17 +402,22 @@ test("extractDocs reads lib's doc comments", () => {
   const [concat, spaces, shellVars, noSummary, oneLiner] = docs;
   assert.deepEqual(concat, {
     name: "concatStringsSep",
-    summary: "Concatenate a list of strings with a separator between each element.",
+    summary:
+      "Concatenate a list of strings with a separator between each element.",
     signature: "concatStringsSep :: string -> [string] -> string",
     inputs: ["sep", "list"],
   });
   assert.deepEqual(spaces, {
     name: "spaces",
-    summary: "Return a string with the given number of spaces. Type: Int -> String",
+    summary:
+      "Return a string with the given number of spaces. Type: Int -> String",
     signature: "Int -> String",
     inputs: [],
   });
-  assert.equal(shellVars?.signature, "toShellVars :: { ${name} :: string } -> string");
+  assert.equal(
+    shellVars?.signature,
+    "toShellVars :: { ${name} :: string } -> string",
+  );
   assert.equal(shellVars?.summary, "A signature that spans lines.");
   assert.equal(noSummary?.summary, "");
   assert.equal(noSummary?.signature, "noSummary :: a -> a");
@@ -406,7 +435,10 @@ test("extractDocs output translates", () => {
   const concat = docs.find((d) => d.name === "concatStringsSep");
   assert.notEqual(concat, undefined);
   const sig = translate(concat!.signature as string, concat!.inputs);
-  assert.equal(renderFunctionType(sig), "(sep: string) => (list: string[]) => string");
+  assert.equal(
+    renderFunctionType(sig),
+    "(sep: string) => (list: string[]) => string",
+  );
   const shellVars = docs.find((d) => d.name === "to-shell-vars");
   assert.equal(
     renderFunctionType(translate(shellVars!.signature as string)),

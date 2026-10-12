@@ -1,0 +1,118 @@
+/* The nixpkgs page: one input, one result card. The tokens and the chrome
+   come from ../style.css; this is only what the page adds. */
+body {
+  max-width: 60rem;
+}
+
+/* The attribute field with its suggestion list dropped under it. */
+.attr-input {
+  position: relative;
+  display: inline-block;
+}
+#attr {
+  width: 20rem;
+  max-width: 70vw;
+  padding: 0.35rem 0.6rem;
+  font:
+    14px/1.5 ui-monospace,
+    monospace;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+#attr:focus {
+  outline: 1px solid var(--accent);
+}
+#suggestions {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 1;
+  min-width: 100%;
+  margin: 0.2rem 0 0;
+  padding: 0.2rem 0;
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  font:
+    13px/1.6 ui-monospace,
+    monospace;
+}
+#suggestions li {
+  padding: 0.1rem 0.6rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#suggestions li:hover,
+#suggestions li.selected {
+  background: var(--code-bg);
+  color: var(--accent);
+}
+
+/* The activity line under the toolbar: modules and bytes so far. */
+#activity {
+  margin: 0 0 0.8rem;
+  font:
+    13px/1.5 ui-monospace,
+    monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The result and error cards. */
+.card {
+  margin: 0 0 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.card h2 {
+  margin-bottom: 0.5rem;
+  font-family: ui-monospace, monospace;
+}
+.card dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1rem;
+  margin: 0;
+}
+.card dt {
+  color: var(--muted);
+}
+.card dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.output-name {
+  display: inline-block;
+  min-width: 3rem;
+  color: var(--muted);
+}
+.links {
+  display: flex;
+  gap: 1.2rem;
+  margin: 0.8rem 0 0;
+}
+#typescript,
+#error-text,
+#log {
+  margin: 0.6rem 0 0;
+  padding: 0.6rem;
+  max-height: 32rem;
+  overflow: auto;
+  background: var(--code-bg);
+  border-radius: 4px;
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+  white-space: pre;
+}
+#error-text {
+  color: var(--error);
+  white-space: pre-wrap;
+}

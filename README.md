@@ -145,6 +145,13 @@ The same runtime evaluates nixpkgs underneath, so what the view returns
 is what Nix would return, and `jinx instantiate` can write the result
 to the store.
 
+`tools/gen-nixpkgs-dts.ts` evaluates a nixpkgs and writes TypeScript
+declarations for the whole package set: every attribute, `lib`'s
+functions with their documented signatures translated to TypeScript
+types, and the shape of a derivation. With
+`loadNixpkgs<Nixpkgs>(...)` an editor completes `pkgs.` and a misspelled
+attribute is a type error ([examples/typed-hello.ts](./examples/typed-hello.ts)).
+
 ## Layout
 
 ```
