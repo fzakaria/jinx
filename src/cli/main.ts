@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { compileToString, compileTree } from "../compiler/compile.ts";
+import { parseArgs } from "./args.ts";
 import { DEFAULT_CACHE, evaluateFile, setup } from "./evaluate.ts";
 import { runCorpus } from "./corpus.ts";
 import { runAdapter } from "./adapter.ts";
@@ -35,60 +36,6 @@ import {
   strValue,
   getAttr,
 } from "../runtime/value.ts";
-
-interface Parsed {
-  positional: string[];
-  flags: Map<string, string | true>;
-}
-
-function parseArgs(argv: string[]): Parsed {
-  const positional: string[] = [];
-  const flags = new Map<string, string | true>();
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i]!;
-    if (a === "--") {
-      positional.push(...argv.slice(i + 1));
-      break;
-    }
-    if (a.startsWith("--")) {
-      const eq = a.indexOf("=");
-      if (eq >= 0) {
-        flags.set(a.slice(2, eq), a.slice(eq + 1));
-        continue;
-      }
-      const name = a.slice(2);
-      const next = argv[i + 1];
-      if (VALUE_FLAGS.has(name) && next !== undefined) {
-        flags.set(name, next);
-        i++;
-      } else {
-        flags.set(name, true);
-      }
-      continue;
-    }
-    if (a === "-A") {
-      flags.set("attr", argv[++i] ?? "");
-      continue;
-    }
-    positional.push(a);
-  }
-  return { positional, flags };
-}
-
-const VALUE_FLAGS: ReadonlySet<string> = new Set([
-  "out",
-  "attr",
-  "system",
-  "cache",
-  "floor",
-  "arg",
-  "argstr",
-  "workers",
-  "tree",
-  "max-heap",
-  "skip-done",
-  "only",
-]);
 
 // A worker's heap budget before it is replaced (eval-jobs).
 const DEFAULT_MAX_HEAP_MB = 6144;
