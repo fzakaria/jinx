@@ -48,6 +48,7 @@ $ nix-instantiate --eval --strict hello.nix
 **Documentation:** [Design](./docs/design.md) ·
 [Semantics](./docs/semantics.md) ·
 [Verification](./docs/verification.md) ·
+[Performance](./docs/performance.md) ·
 [Constraints](./docs/constraints.md) ·
 [Comparisons](./docs/comparisons.md) ·
 [Tracking nixpkgs](./docs/tracking-nixpkgs.md) ·

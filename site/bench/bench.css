@@ -73,7 +73,7 @@ svg.panel {
 }
 .panel .tick,
 .panel .subtitle,
-.panel .point-label {
+.panel .commit-tick {
   font:
     10px system-ui,
     sans-serif;
@@ -82,7 +82,7 @@ svg.panel {
 .panel .tick {
   font-variant-numeric: tabular-nums;
 }
-.panel .point-label {
+.panel .commit-tick {
   font-family: ui-monospace, monospace;
 }
 .panel .title {

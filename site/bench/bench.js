@@ -26,19 +26,30 @@ const PROBE_ORDER = ["lib", "hello", "firefox", "nixos", "sample"];
 
 const PANEL_WIDTH = 320;
 const PANEL_HEIGHT = 210;
-// The top band holds the title and subtitle; the bottom band the date
-// ticks; the left band the y tick labels, as wide as the widest ("1000").
-const MARGIN = { top: 34, right: 14, bottom: 30, left: 38 };
+// The top band holds the title and subtitle; the bottom band the x ticks,
+// a date over a commit; the right band the direct labels at the lines'
+// ends ("jinx warm"); the left band the y tick labels, as wide as the
+// widest ("1000").
+const MARGIN = { top: 34, right: 66, bottom: 42, left: 38 };
 const TICK_LABEL_GAP = 6;
 const TITLE_Y = 12;
 const SUBTITLE_Y = 25;
-const GRID_LINES = 4;
 const MARKER_RADIUS = 4;
 const HOVER_RADIUS = 6;
-const LABEL_OFFSET = 7;
-const POINT_LABEL_OFFSET = 9;
-const DATE_TICK_Y = 14;
-const MIN_DATE_TICK_GAP = 70;
+// A series' direct label sits right of its last point; two closer than
+// this are pushed apart.
+const END_LABEL_GAP = 11;
+const END_LABEL_INSET = 4;
+// An x tick is two lines, the date and the commit, under the axis.
+const DATE_TICK_Y = 13;
+const COMMIT_TICK_Y = 24;
+// Two ticks closer than this (about a tick's width) would overprint, so
+// the one between the ends is dropped.
+const MIN_TICK_GAP = 96;
+// How much of an error the table shows; the cell's title has it all.
+const ERROR_MAX_CHARS = 48;
+// The subtitle is one line under the title, clipped rather than wrapped.
+const SUBTITLE_MAX_CHARS = 46;
 const TOOLTIP_OFFSET = 12;
 const TOOLTIP_WIDTH = 260;
 const SVG = "http://www.w3.org/2000/svg";
@@ -109,7 +120,11 @@ function format(v, unit) {
     return "–";
   }
   if (unit === "s") {
-    return v >= 100 ? `${v.toFixed(0)} s` : v >= 10 ? `${v.toFixed(1)} s` : `${v.toFixed(2)} s`;
+    return v >= 100
+      ? `${v.toFixed(0)} s`
+      : v >= 10
+        ? `${v.toFixed(1)} s`
+        : `${v.toFixed(2)} s`;
   }
   if (unit === "MB") {
     return `${v.toFixed(0)} MB`;
@@ -124,22 +139,39 @@ function ratio(a, b) {
   return `${(a / b).toFixed(1)}x`;
 }
 
-// 0..max stretched to a round number the gridlines divide evenly.
-function niceCeiling(max) {
+// 0..max stretched to a round number, with the gridline count that
+// divides it into round ticks: 2.5 into five of 0.5, 4 into four of 1.
+const NICE_STEPS = [
+  { step: 1, lines: 4 },
+  { step: 2, lines: 4 },
+  { step: 2.5, lines: 5 },
+  { step: 4, lines: 4 },
+  { step: 5, lines: 5 },
+  { step: 10, lines: 5 },
+];
+function niceScale(max) {
   const magnitude = 10 ** Math.floor(Math.log10(max));
-  for (const step of [1, 2, 2.5, 4, 5, 10]) {
+  for (const { step, lines } of NICE_STEPS) {
     if (step * magnitude >= max) {
-      return step * magnitude;
+      return { top: step * magnitude, lines };
     }
   }
-  return 10 * magnitude;
+  return { top: 10 * magnitude, lines: 5 };
+}
+
+function clip(text, max) {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
 function axisLabel(v) {
   if (v === 0) {
     return "0";
   }
-  return v >= 100 ? v.toFixed(0) : v >= 10 ? String(+v.toFixed(1)) : String(+v.toFixed(2));
+  return v >= 100
+    ? v.toFixed(0)
+    : v >= 10
+      ? String(+v.toFixed(1))
+      : String(+v.toFixed(2));
 }
 
 // ---- one panel ------------------------------------------------------------
@@ -162,10 +194,15 @@ function panel(title, subtitle, records, probe, measure, tooltipHost) {
   const first = Math.min(...times);
   const last = Math.max(...times);
   const span = last - first;
-  const x = (i) => MARGIN.left + (span > 0 ? ((times[i] - first) / span) * plotWidth : plotWidth / 2);
+  const x = (i) =>
+    MARGIN.left +
+    (span > 0 ? ((times[i] - first) / span) * plotWidth : plotWidth / 2);
 
-  const max = Math.max(1e-9, ...series.flatMap((s) => s.values.filter((v) => v !== null)));
-  const top = niceCeiling(max);
+  const max = Math.max(
+    1e-9,
+    ...series.flatMap((s) => s.values.filter((v) => v !== null)),
+  );
+  const { top, lines } = niceScale(max);
   const y = (v) => MARGIN.top + plotHeight - (v / top) * plotHeight;
 
   const svg = el("svg", {
@@ -176,8 +213,8 @@ function panel(title, subtitle, records, probe, measure, tooltipHost) {
   });
 
   // The grid: hairlines at round values, labelled on the left.
-  for (let g = 0; g <= GRID_LINES; g++) {
-    const v = (top * g) / GRID_LINES;
+  for (let g = 0; g <= lines; g++) {
+    const v = (top * g) / lines;
     svg.append(
       el("line", {
         x1: MARGIN.left,
@@ -190,38 +227,58 @@ function panel(title, subtitle, records, probe, measure, tooltipHost) {
     svg.append(
       el(
         "text",
-        { x: MARGIN.left - TICK_LABEL_GAP, y: y(v) + 3, class: "tick", "text-anchor": "end" },
+        {
+          x: MARGIN.left - TICK_LABEL_GAP,
+          y: y(v) + 3,
+          class: "tick",
+          "text-anchor": "end",
+        },
         [axisLabel(v)],
       ),
     );
   }
 
-  // Date ticks: the first and last record, and any between that have
-  // room; a lone record is labelled once.
-  let previousTick = -Infinity;
-  records.forEach((r, i) => {
-    const px = x(i);
-    const isEnd = i === 0 || i === n - 1;
-    if (!isEnd && px - previousTick < MIN_DATE_TICK_GAP) {
-      return;
+  // X ticks: the date and the commit of the first and last record, and
+  // of any between them with room on both sides. A lone record is
+  // labelled once, in the middle.
+  const ticks = [0];
+  if (n > 1) {
+    let previous = x(0);
+    for (let i = 1; i < n - 1; i++) {
+      if (x(i) - previous >= MIN_TICK_GAP && x(n - 1) - x(i) >= MIN_TICK_GAP) {
+        ticks.push(i);
+        previous = x(i);
+      }
     }
-    if (isEnd && i === n - 1 && px - previousTick < MIN_DATE_TICK_GAP && n > 1) {
-      return;
-    }
-    previousTick = px;
+    ticks.push(n - 1);
+  }
+  for (const i of ticks) {
+    const anchor =
+      n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+    const baseline = MARGIN.top + plotHeight;
     svg.append(
       el(
         "text",
         {
-          x: px,
-          y: MARGIN.top + plotHeight + DATE_TICK_Y,
+          x: x(i),
+          y: baseline + DATE_TICK_Y,
           class: "tick",
-          "text-anchor": i === 0 && n > 1 ? "start" : i === n - 1 && n > 1 ? "end" : "middle",
+          "text-anchor": anchor,
         },
-        [dateOf(r)],
+        [dateOf(records[i])],
+      ),
+      el(
+        "text",
+        {
+          x: x(i),
+          y: baseline + COMMIT_TICK_Y,
+          class: "commit-tick",
+          "text-anchor": anchor,
+        },
+        [shortCommit(records[i])],
       ),
     );
-  });
+  }
 
   // The lines, broken at gaps, and a marker per point.
   for (const s of series) {
@@ -252,53 +309,42 @@ function panel(title, subtitle, records, probe, measure, tooltipHost) {
     });
   }
 
-  // Each point's commit, under the highest series' point at that record so
-  // the three labels for one run do not stack: one commit per column.
-  records.forEach((r, i) => {
-    const lowest = Math.max(...series.map((s) => (s.values[i] === null ? -Infinity : y(s.values[i]))));
-    if (lowest === -Infinity) {
-      return;
-    }
-    svg.append(
-      el(
-        "text",
-        {
-          x: x(i),
-          y: Math.min(lowest + POINT_LABEL_OFFSET + 3, MARGIN.top + plotHeight - 2),
-          class: "point-label",
-          "text-anchor": "middle",
-        },
-        [shortCommit(r)],
-      ),
-    );
-  });
-
-  // The title, the subtitle, and a direct label on each series' last
-  // point, nudged apart when two land on each other.
+  // The title, the subtitle, and a direct label right of each series' last
+  // point, at the point's height, pushed down when two would overlap and
+  // kept inside the plot.
   svg.append(el("text", { x: 0, y: TITLE_Y, class: "title" }, [title]));
-  svg.append(el("text", { x: 0, y: SUBTITLE_Y, class: "subtitle" }, [subtitle]));
+  svg.append(
+    el("text", { x: 0, y: SUBTITLE_Y, class: "subtitle" }, [
+      clip(subtitle, SUBTITLE_MAX_CHARS),
+    ]),
+  );
   const ends = series
     .map((s) => {
-      const i = s.values.map((v, j) => (v === null ? -1 : j)).reduce((a, b) => Math.max(a, b), -1);
-      return i < 0 ? null : { colour: s.colour, label: s.label, x: x(i), y: y(s.values[i]) };
+      const i = s.values
+        .map((v, j) => (v === null ? -1 : j))
+        .reduce((a, b) => Math.max(a, b), -1);
+      return i < 0
+        ? null
+        : { colour: s.colour, label: s.label, x: x(i), y: y(s.values[i]) };
     })
     .filter((e) => e !== null)
     .sort((a, b) => a.y - b.y);
   let previous = -Infinity;
   for (const end of ends) {
-    let labelY = end.y - LABEL_OFFSET;
-    if (labelY - previous < LABEL_OFFSET + 3) {
-      labelY = previous + LABEL_OFFSET + 3;
-    }
+    const baseline = Math.max(
+      end.y + END_LABEL_INSET,
+      MARGIN.top + END_LABEL_GAP,
+    );
+    const labelY = Math.max(baseline, previous + END_LABEL_GAP);
     previous = labelY;
     svg.append(
       el(
         "text",
         {
-          x: end.x - MARKER_RADIUS - 2,
+          x: end.x + MARKER_RADIUS + END_LABEL_INSET,
           y: labelY,
           class: "end-label",
-          "text-anchor": "end",
+          "text-anchor": "start",
           style: `fill:${end.colour}`,
         },
         [end.label],
@@ -307,7 +353,11 @@ function panel(title, subtitle, records, probe, measure, tooltipHost) {
   }
 
   // Hover: the nearest record, a crosshair, and its values in a tooltip.
-  const cursor = el("line", { y1: MARGIN.top, y2: MARGIN.top + plotHeight, class: "cursor" });
+  const cursor = el("line", {
+    y1: MARGIN.top,
+    y2: MARGIN.top + plotHeight,
+    class: "cursor",
+  });
   cursor.style.display = "none";
   svg.append(cursor);
   const hits = el("rect", {
@@ -334,7 +384,9 @@ function panel(title, subtitle, records, probe, measure, tooltipHost) {
     const record = records[i];
     const probeRecord = record.probes?.[probe];
     tooltipHost.replaceChildren(
-      html("div", { class: "tip-head" }, [`${dateOf(record)} · nixpkgs ${record.nixpkgs ?? "?"}`]),
+      html("div", { class: "tip-head" }, [
+        `${dateOf(record)} · nixpkgs ${record.nixpkgs ?? "?"}`,
+      ]),
       html("div", { class: "tip-commit" }, [`jinx ${shortCommit(record)}`]),
       ...series.map((s) =>
         html("div", {}, [
@@ -343,7 +395,11 @@ function panel(title, subtitle, records, probe, measure, tooltipHost) {
         ]),
       ),
       ...(probeRecord && !probeRecord.match
-        ? [html("div", { class: "mismatch" }, [probeRecord.error ?? "outputs differ"])]
+        ? [
+            html("div", { class: "mismatch" }, [
+              probeRecord.error ?? "outputs differ",
+            ]),
+          ]
         : []),
     );
     tooltipHost.hidden = false;
@@ -366,7 +422,10 @@ function panel(title, subtitle, records, probe, measure, tooltipHost) {
 function drawLegend() {
   $("legend").replaceChildren(
     ...SERIES.map((s) =>
-      html("span", {}, [html("span", { class: "swatch", style: `background:${s.colour}` }), s.label]),
+      html("span", {}, [
+        html("span", { class: "swatch", style: `background:${s.colour}` }),
+        s.label,
+      ]),
     ),
   );
 }
@@ -412,8 +471,8 @@ function drawLatest(records, probes) {
     ...SERIES.map((s) => html("th", { class: "num" }, [s.label])),
     html("th", { class: "num" }, ["cold / nix"]),
     html("th", { class: "num" }, ["warm / nix"]),
-    html("th", { class: "num" }, ["peak RSS nix"]),
-    html("th", { class: "num" }, ["peak RSS jinx warm"]),
+    html("th", { class: "num" }, ["RSS nix"]),
+    html("th", { class: "num" }, ["RSS jinx warm"]),
     html("th", {}, ["outputs"]),
   ]);
   const rows = probes.map((probe) => {
@@ -424,13 +483,27 @@ function drawLatest(records, probes) {
     return html("tr", {}, [
       html("td", {}, [probe]),
       html("td", {}, [p?.description ?? ""]),
-      ...SERIES.map((s) => html("td", { class: "num" }, [format(seconds(s.key), MEASURE_SECONDS.unit)])),
-      html("td", { class: "num" }, [ratio(seconds("jinxCold"), seconds("nix"))]),
-      html("td", { class: "num" }, [ratio(seconds("jinxWarm"), seconds("nix"))]),
-      html("td", { class: "num" }, [format(memory("nix"), MEASURE_MEMORY.unit)]),
-      html("td", { class: "num" }, [format(memory("jinxWarm"), MEASURE_MEMORY.unit)]),
+      ...SERIES.map((s) =>
+        html("td", { class: "num" }, [
+          format(seconds(s.key), MEASURE_SECONDS.unit),
+        ]),
+      ),
+      html("td", { class: "num" }, [
+        ratio(seconds("jinxCold"), seconds("nix")),
+      ]),
+      html("td", { class: "num" }, [
+        ratio(seconds("jinxWarm"), seconds("nix")),
+      ]),
+      html("td", { class: "num" }, [
+        format(memory("nix"), MEASURE_MEMORY.unit),
+      ]),
+      html("td", { class: "num" }, [
+        format(memory("jinxWarm"), MEASURE_MEMORY.unit),
+      ]),
       html("td", { class: match ? "" : "mismatch", title: p?.error ?? "" }, [
-        match ? "identical" : (p?.error ?? "differ").split("\n")[0],
+        match
+          ? "identical"
+          : clip((p?.error ?? "differ").split("\n")[0], ERROR_MAX_CHARS),
       ]),
     ]);
   });
@@ -457,13 +530,16 @@ function drawRecords(records, probes) {
     html("tr", {}, [
       html("td", {}, [dateOf(record)]),
       html("td", { class: "commit" }, [commitLink(record)]),
-      html("td", {}, [html("code", {}, [(record.nixpkgs ?? "?").slice(0, SHORT_COMMIT)])]),
+      html("td", {}, [
+        html("code", {}, [(record.nixpkgs ?? "?").slice(0, SHORT_COMMIT)]),
+      ]),
       html("td", {}, [record.machine?.host ?? "?"]),
       ...probes.flatMap((probe) =>
         SERIES.map((s) => {
           const p = record.probes?.[probe];
           const v = value(record, probe, s.key, MEASURE_SECONDS.key);
-          const mismatch = p !== undefined && p.match !== true && s.key !== "nix";
+          const mismatch =
+            p !== undefined && p.match !== true && s.key !== "nix";
           return html("td", { class: mismatch ? "num mismatch" : "num" }, [
             format(v, MEASURE_SECONDS.unit),
           ]);
@@ -485,7 +561,9 @@ async function main() {
   // no-store: the file changes with every run and carries no hash.
   const response = await fetch(HISTORY_URL, { cache: "no-store" });
   const history = await response.json();
-  const records = (history.records ?? []).filter((r) => typeof r.date === "string");
+  const records = (history.records ?? []).filter(
+    (r) => typeof r.date === "string",
+  );
   records.sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
   if (records.length === 0) {
     $("latest").append(html("p", { class: "muted" }, ["No records yet."]));

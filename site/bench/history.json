@@ -1,0 +1,97 @@
+{
+  "description": "One record per run of tools/bench.ts: Nix and jinx evaluating the same probes on one machine, wall seconds and peak RSS as the median of repeated runs, jinx cold (compiling on demand into an empty cache) and warm (the compiled modules present). See site/bench/ and docs/performance.md.",
+  "records": [
+    {
+      "date": "2026-10-12T05:27:31.237Z",
+      "jinxCommit": "5ef5c1a273f7d4ad9b030a6d158aa207bb49341c",
+      "nixpkgs": "4dp7jwjpwb9filsqnrq7x7lw3kzbzkdk-4k79ns9drp02wyvcix81c7nnz4hn8psi-source",
+      "nixpkgsPath": "/nix/store/4dp7jwjpwb9filsqnrq7x7lw3kzbzkdk-4k79ns9drp02wyvcix81c7nnz4hn8psi-source",
+      "nixVersion": "2.34.8",
+      "nodeVersion": "24.21.0",
+      "machine": {
+        "host": "nyx",
+        "cpu": "AMD Ryzen 7 7840U w/ Radeon 780M Graphics",
+        "cores": 16,
+        "memoryGb": 61
+      },
+      "runs": 3,
+      "probes": {
+        "lib": {
+          "description": "the lib test suite, lib/tests/misc.nix",
+          "nix": {
+            "seconds": 0.5,
+            "maxRssMb": 217
+          },
+          "jinxCold": {
+            "seconds": 1.43,
+            "maxRssMb": 489
+          },
+          "jinxWarm": {
+            "seconds": 1.29,
+            "maxRssMb": 490
+          },
+          "match": true
+        },
+        "hello": {
+          "description": "hello.drvPath",
+          "nix": {
+            "seconds": 0.32,
+            "maxRssMb": 93
+          },
+          "jinxCold": {
+            "seconds": 2.31,
+            "maxRssMb": 383
+          },
+          "jinxWarm": {
+            "seconds": 1.73,
+            "maxRssMb": 352
+          },
+          "match": true
+        },
+        "firefox": {
+          "description": "firefox.drvPath",
+          "nix": {
+            "seconds": 1.84,
+            "maxRssMb": 343
+          },
+          "jinxCold": {
+            "seconds": 9.89,
+            "maxRssMb": 838
+          },
+          "jinxWarm": {
+            "seconds": 8.03,
+            "maxRssMb": 817
+          },
+          "match": true
+        },
+        "nixos": {
+          "description": "a minimal NixOS closure, system.drvPath",
+          "nix": {
+            "seconds": 3.66,
+            "maxRssMb": 597
+          },
+          "jinxCold": null,
+          "jinxWarm": null,
+          "match": false,
+          "error": "exit 1: error: lib.path.hasStorePathPrefix: Argument has a filesystem root (.) that's not /, which is currently not supported.\n       \u2026 while evaluating the option `system.preSwitchChecksScript':\n       \u2026 while evaluating definitions from `/nix/store/4dp7jwjpwb9filsqnrq7x7lw3kzbzkdk-4k79ns9drp02wyvcix81c7nnz4hn8psi-source/nixos/modules/system/activation/switchable-system.nix':\n       \u2026 while evaluating th"
+        },
+        "sample": {
+          "description": "the 66-package sample, every drvPath",
+          "nix": {
+            "seconds": 5.31,
+            "maxRssMb": 658
+          },
+          "jinxCold": {
+            "seconds": 32.22,
+            "maxRssMb": 3132
+          },
+          "jinxWarm": {
+            "seconds": 24.44,
+            "maxRssMb": 2533
+          },
+          "match": true
+        }
+      }
+    }
+  ]
+}

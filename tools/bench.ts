@@ -53,14 +53,20 @@ const TIME_FORMAT = "%e %M";
 const TIME_VERSION_MARK = "GNU Time";
 const KB_PER_MB = 1024;
 const BYTES_PER_GB = 1024 ** 3;
-const NIX_INSTANTIATE_FLAGS = ["--eval", "--strict", "--read-write-mode", "--json"];
+const NIX_INSTANTIATE_FLAGS = [
+  "--eval",
+  "--strict",
+  "--read-write-mode",
+  "--json",
+];
 const HISTORY_DESCRIPTION =
   "One record per run of tools/bench.ts: Nix and jinx evaluating the same " +
   "probes on one machine, wall seconds and peak RSS as the median of " +
   "repeated runs, jinx cold (compiling on demand into an empty cache) and " +
   "warm (the compiled modules present). See site/bench/ and docs/performance.md.";
-// How much of a failed command's stderr the record keeps.
-const ERROR_TAIL_CHARS = 400;
+// How much of a failed command's stderr the record keeps: the head, since
+// an evaluator states the error first and the trace after it.
+const ERROR_HEAD_CHARS = 400;
 
 // How the attribute sets the probes import nixpkgs with.
 const PKGS_DEFAULT = "{ }";
@@ -70,17 +76,72 @@ const PKGS_SAMPLE =
 // The 66-package sample docs/verification.md reports parity on: large and
 // small packages across language ecosystems, cross and static builds.
 const SAMPLE_ATTRS = [
-  "hello", "python3", "python3Packages.requests", "git", "ripgrep", "curl",
-  "openssl", "gcc", "glibc", "rustc", "cargo", "go", "nodejs", "jq", "vim",
-  "emacs", "firefox", "linux", "systemd", "ghc", "llvmPackages.clang",
-  "qt6.qtbase", "kdePackages.dolphin", "haskellPackages.pandoc", "bash",
-  "coreutils", "stdenv", "cmake", "ninja", "meson", "docker", "kubernetes",
-  "zig", "ocaml", "erlang", "elixir", "ruby", "php", "lua", "R", "tmux",
-  "neovim", "sqlite", "postgresql", "redis", "nginx", "openjdk", "maven",
-  "dotnet-sdk", "mesa", "xorg.xorgserver", "sway", "hyprland", "vscode",
-  "nix", "electron", "texliveSmall", "perlPackages.Moose", "gnome-shell",
-  "libreoffice", "wine", "steam", "pkgsCross.aarch64-multiplatform.hello",
-  "pkgsStatic.hello", "pkgsMusl.hello", "nixos-rebuild",
+  "hello",
+  "python3",
+  "python3Packages.requests",
+  "git",
+  "ripgrep",
+  "curl",
+  "openssl",
+  "gcc",
+  "glibc",
+  "rustc",
+  "cargo",
+  "go",
+  "nodejs",
+  "jq",
+  "vim",
+  "emacs",
+  "firefox",
+  "linux",
+  "systemd",
+  "ghc",
+  "llvmPackages.clang",
+  "qt6.qtbase",
+  "kdePackages.dolphin",
+  "haskellPackages.pandoc",
+  "bash",
+  "coreutils",
+  "stdenv",
+  "cmake",
+  "ninja",
+  "meson",
+  "docker",
+  "kubernetes",
+  "zig",
+  "ocaml",
+  "erlang",
+  "elixir",
+  "ruby",
+  "php",
+  "lua",
+  "R",
+  "tmux",
+  "neovim",
+  "sqlite",
+  "postgresql",
+  "redis",
+  "nginx",
+  "openjdk",
+  "maven",
+  "dotnet-sdk",
+  "mesa",
+  "xorg.xorgserver",
+  "sway",
+  "hyprland",
+  "vscode",
+  "nix",
+  "electron",
+  "texliveSmall",
+  "perlPackages.Moose",
+  "gnome-shell",
+  "libreoffice",
+  "wine",
+  "steam",
+  "pkgsCross.aarch64-multiplatform.hello",
+  "pkgsStatic.hello",
+  "pkgsMusl.hello",
+  "nixos-rebuild",
 ];
 
 // A NixOS configuration small enough to evaluate in seconds and large
@@ -98,28 +159,31 @@ const PROBES: ReadonlyMap<string, Probe> = new Map<string, Probe>([
   [
     "lib",
     {
-      description: "the lib test suite: builtins.length (import <nixpkgs>/lib/tests/misc.nix)",
-      expression: (nixpkgs) => `builtins.length (import ${nixpkgs}/lib/tests/misc.nix)`,
+      description: "the lib test suite, lib/tests/misc.nix",
+      expression: (nixpkgs) =>
+        `builtins.length (import ${nixpkgs}/lib/tests/misc.nix)`,
     },
   ],
   [
     "hello",
     {
       description: "hello.drvPath",
-      expression: (nixpkgs) => `(import ${nixpkgs} ${PKGS_DEFAULT}).hello.drvPath`,
+      expression: (nixpkgs) =>
+        `(import ${nixpkgs} ${PKGS_DEFAULT}).hello.drvPath`,
     },
   ],
   [
     "firefox",
     {
       description: "firefox.drvPath",
-      expression: (nixpkgs) => `(import ${nixpkgs} ${PKGS_DEFAULT}).firefox.drvPath`,
+      expression: (nixpkgs) =>
+        `(import ${nixpkgs} ${PKGS_DEFAULT}).firefox.drvPath`,
     },
   ],
   [
     "nixos",
     {
-      description: "a minimal NixOS system closure: config.system.build.toplevel.drvPath",
+      description: "a minimal NixOS closure, system.drvPath",
       expression: (nixpkgs) =>
         `(import ${nixpkgs}/nixos { configuration = ${NIXOS_CONFIGURATION}; }).system.drvPath`,
     },
@@ -127,7 +191,7 @@ const PROBES: ReadonlyMap<string, Probe> = new Map<string, Probe>([
   [
     "sample",
     {
-      description: `the ${SAMPLE_ATTRS.length}-package sample: every drvPath, allowUnfree, no aliases`,
+      description: `the ${SAMPLE_ATTRS.length}-package sample, every drvPath`,
       expression: (nixpkgs) => sampleExpression(nixpkgs),
     },
   ],
@@ -144,7 +208,7 @@ function sampleExpression(nixpkgs: string): string {
     `  attrs = [ ${attrs} ];`,
     "  get = path:",
     "    let",
-    "      v = builtins.foldl' (a: n: a.${n}) pkgs (pkgs.lib.splitString \".\" path);",
+    '      v = builtins.foldl\' (a: n: a.${n}) pkgs (pkgs.lib.splitString "." path);',
     "      r = builtins.tryEval (builtins.deepSeq v.drvPath v.drvPath);",
     "    in",
     '    if r.success then r.value else "ERROR";',
@@ -301,13 +365,27 @@ function nixCommand(file: string): string[] {
 // jinx on a probe. The installed wrapper lifts the stack limit itself;
 // running from the tree, the tool does what the wrapper does: raise the OS
 // limit in a shell and hand V8 a stack to match.
-function jinxCommand(jinx: string | null, file: string, cache: string): string[] {
+function jinxCommand(
+  jinx: string | null,
+  file: string,
+  cache: string,
+): string[] {
   const args = ["eval", file, "--json", "--cache", cache];
   if (jinx !== null) {
     return [jinx, ...args];
   }
-  const lift = 'ulimit -s unlimited 2>/dev/null || ulimit -s "$(ulimit -Hs)" 2>/dev/null || true; exec "$@"';
-  return ["bash", "-c", lift, "bash", "node", ...NODE_FLAGS, JINX_MAIN, ...args];
+  const lift =
+    'ulimit -s unlimited 2>/dev/null || ulimit -s "$(ulimit -Hs)" 2>/dev/null || true; exec "$@"';
+  return [
+    "bash",
+    "-c",
+    lift,
+    "bash",
+    "node",
+    ...NODE_FLAGS,
+    JINX_MAIN,
+    ...args,
+  ];
 }
 
 // ---- measuring ----------------------------------------------------------
@@ -315,7 +393,9 @@ function jinxCommand(jinx: string | null, file: string, cache: string): string[]
 function median(values: readonly number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+  return sorted.length % 2 === 1
+    ? sorted[mid]!
+    : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
 function medianMeasurement(runs: readonly Measurement[]): Measurement {
@@ -353,16 +433,20 @@ interface Phase {
 }
 
 // A command measured `count` times. The value is the first run's; a
-// command that fails stops the phase and the record carries the tail of
+// command that fails stops the phase and the record carries the head of
 // what it said.
-function phase(count: number, scratch: string, command: () => readonly string[]): Phase {
+function phase(
+  count: number,
+  scratch: string,
+  command: () => readonly string[],
+): Phase {
   const runs: Measurement[] = [];
   let value: string | null = null;
   for (let i = 0; i < count; i++) {
     const result = timed(command(), scratch);
     if (result.status !== 0) {
-      const tail = result.stderr.trim().slice(-ERROR_TAIL_CHARS);
-      return { runs, value, error: `exit ${result.status}: ${tail}` };
+      const head = result.stderr.trim().slice(0, ERROR_HEAD_CHARS);
+      return { runs, value, error: `exit ${result.status}: ${head}` };
     }
     runs.push(result.measurement);
     if (value === null) {
@@ -414,12 +498,15 @@ function measureProbe(
   // Warm: the same cache, now holding every compiled module.
   const warm =
     cold.error === null
-      ? phase(options.runs, scratch, () => jinxCommand(options.jinx, file, cache))
+      ? phase(options.runs, scratch, () =>
+          jinxCommand(options.jinx, file, cache),
+        )
       : { runs: [], value: null, error: "skipped: the cold run failed" };
   report(name, "jinx warm", warm);
   rmSync(cache, { recursive: true, force: true });
 
-  const match = nix.value !== null && nix.value === cold.value && nix.value === warm.value;
+  const match =
+    nix.value !== null && nix.value === cold.value && nix.value === warm.value;
   const error = [nix.error, cold.error, warm.error].find((e) => e !== null);
   return {
     description: probe.description,
@@ -434,12 +521,16 @@ function measureProbe(
 function report(probe: string, what: string, p: Phase): void {
   const label = `${probe.padEnd(8)} ${what.padEnd(10)}`;
   if (p.error !== null) {
-    process.stdout.write(`${label} failed after ${p.runs.length} runs: ${p.error.split("\n")[0]}\n`);
+    process.stdout.write(
+      `${label} failed after ${p.runs.length} runs: ${p.error.split("\n")[0]}\n`,
+    );
     return;
   }
   const m = medianMeasurement(p.runs);
   const all = p.runs.map((r) => r.seconds.toFixed(2)).join(" ");
-  process.stdout.write(`${label} ${m.seconds.toFixed(2)} s  ${m.maxRssMb} MB  (${all})\n`);
+  process.stdout.write(
+    `${label} ${m.seconds.toFixed(2)} s  ${m.maxRssMb} MB  (${all})\n`,
+  );
 }
 
 // ---- the record ---------------------------------------------------------
@@ -496,7 +587,9 @@ function nixpkgsName(path: string, fromRegistry: boolean): string {
     return readFileSync(marker, "utf8").trim();
   }
   if (fromRegistry) {
-    const metadata = JSON.parse(output(["nix", "flake", "metadata", NIXPKGS_FLAKE, "--json"])) as {
+    const metadata = JSON.parse(
+      output(["nix", "flake", "metadata", NIXPKGS_FLAKE, "--json"]),
+    ) as {
       revision?: string;
     };
     if (metadata.revision !== undefined) {
@@ -525,7 +618,10 @@ function main(argv: readonly string[]): number {
   checkGnuTime();
 
   const fromRegistry = options.nixpkgs === null;
-  const nixpkgs = resolve(options.nixpkgs ?? output(["nix", "eval", "--raw", `${NIXPKGS_FLAKE}#path`]));
+  const nixpkgs = resolve(
+    options.nixpkgs ??
+      output(["nix", "eval", "--raw", `${NIXPKGS_FLAKE}#path`]),
+  );
   const nixVersion = output(["nix", "--version"]).split(" ").at(-1)!;
   const nodeVersion = output(["node", "--version"]).replace(/^v/, "");
   const where = machine();
@@ -539,7 +635,13 @@ function main(argv: readonly string[]): number {
   const probes: { [name: string]: ProbeRecord } = {};
   try {
     for (const name of options.probes) {
-      probes[name] = measureProbe(name, PROBES.get(name)!, nixpkgs, options, scratch);
+      probes[name] = measureProbe(
+        name,
+        PROBES.get(name)!,
+        nixpkgs,
+        options,
+        scratch,
+      );
     }
   } finally {
     rmSync(scratch, { recursive: true, force: true });
@@ -561,17 +663,24 @@ function main(argv: readonly string[]): number {
   saveHistory(options.history, history);
 
   // The summary: the ratios the page's table shows.
-  process.stdout.write(`\n${"probe".padEnd(8)} ${"nix".padStart(8)} ${"cold".padStart(8)} ${"warm".padStart(8)} ${"cold/nix".padStart(9)} ${"warm/nix".padStart(9)}  match\n`);
+  process.stdout.write(
+    `\n${"probe".padEnd(8)} ${"nix".padStart(8)} ${"cold".padStart(8)} ${"warm".padStart(8)} ${"cold/nix".padStart(9)} ${"warm/nix".padStart(9)}  match\n`,
+  );
   for (const [name, p] of Object.entries(probes)) {
-    const s = (m: Measurement | null) => (m === null ? "-" : `${m.seconds.toFixed(2)} s`);
+    const s = (m: Measurement | null) =>
+      m === null ? "-" : `${m.seconds.toFixed(2)} s`;
     const ratio = (m: Measurement | null) =>
-      m === null || p.nix === null ? "-" : `${(m.seconds / p.nix.seconds).toFixed(1)}x`;
+      m === null || p.nix === null
+        ? "-"
+        : `${(m.seconds / p.nix.seconds).toFixed(1)}x`;
     process.stdout.write(
       `${name.padEnd(8)} ${s(p.nix).padStart(8)} ${s(p.jinxCold).padStart(8)} ${s(p.jinxWarm).padStart(8)} ` +
         `${ratio(p.jinxCold).padStart(9)} ${ratio(p.jinxWarm).padStart(9)}  ${p.match}\n`,
     );
   }
-  process.stdout.write(`bench: appended record ${history.records.length} to ${options.history}\n`);
+  process.stdout.write(
+    `bench: appended record ${history.records.length} to ${options.history}\n`,
+  );
   return Object.values(probes).every((p) => p.match) ? 0 : 1;
 }
 

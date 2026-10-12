@@ -285,6 +285,7 @@ def site_chrome(root):
     header = header.replace(' class="active"', "")
     header = header.replace('href="."', 'href="../"')
     header = header.replace('href="docs/"', 'class="active" href="./"')
+    header = header.replace('href="bench/"', 'href="../bench/"')
 
     footer = re.sub(r'<div id="store" hidden>.*?</div>', "", footer, flags=re.S)
     footer = footer.replace('href="llms.txt"', 'href="../llms.txt"')
