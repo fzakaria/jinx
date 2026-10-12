@@ -155,8 +155,9 @@ onFetch((path) => {
   lastPath = path;
   progress(false);
 });
-onLoad((path) => {
-  lastPath = path;
+// A load is from memory once the file is here; only a fetch names the
+// file on the page, so the line stops changing when fetching stops.
+onLoad(() => {
   progress(false);
 });
 

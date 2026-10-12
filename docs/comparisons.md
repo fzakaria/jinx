@@ -50,8 +50,9 @@ a dynamic language still pays runtime type checks and still
 re-evaluates everything. The type checks do stay; a compiled module
 graph is, though, what incremental evaluation needs.
 
-In the other direction, [NiJS] (2013) is a JavaScript DSL that writes
-Nix, and [PureNix] compiles PureScript to Nix. Nickel's Nix import
+In the other direction, [garn] writes a flake from TypeScript and
+hands it to Nix, [NiJS] (2013) is a JavaScript DSL that writes Nix,
+and [PureNix] compiles PureScript to Nix. Nickel's Nix import
 links libnixexpr and evaluates eagerly. No Nix-to-JavaScript or
 Nix-to-TypeScript compiler existed before jinx.
 
@@ -77,5 +78,6 @@ slower than Nix per attribute ([performance.md](./performance.md)).
 [hnix]: https://github.com/haskell-nix/hnix
 [nix-eval-js]: https://github.com/milahu/nix-eval-js
 [nix2c]: https://github.com/milahu/nix2c
+[garn]: https://garn.io
 [NiJS]: https://github.com/svanderburg/nijs
 [PureNix]: https://github.com/purenix-org/purenix
