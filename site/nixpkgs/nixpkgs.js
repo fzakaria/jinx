@@ -31,6 +31,7 @@ const MIB = KIB * KIB;
 
 const TRYNIX_URL = "https://trynix.dev/";
 const NIXPKGS_GITHUB = "https://github.com/NixOS/nixpkgs/blob";
+const NIXPKGS_TREE = "https://github.com/NixOS/nixpkgs/tree";
 const SHOW_TS = "show TypeScript";
 // The compiled module is shown in the playground's editor, read only.
 const EDITORS_URL = "../js/editors.js";
@@ -133,6 +134,15 @@ function trynixLink(outPath) {
   const url = new URL(TRYNIX_URL);
   url.searchParams.set("path", outPath);
   return url.href;
+}
+
+// The nixpkgs commit the tree was compiled from, as a link to it.
+function revisionLink() {
+  const a = document.createElement("a");
+  a.href = `${NIXPKGS_TREE}/${config.rev}`;
+  a.textContent = config.rev.slice(0, SHORT_COMMIT);
+  a.title = "the nixpkgs commit this tree was compiled from";
+  return a;
 }
 
 function githubLink(position) {
@@ -456,9 +466,8 @@ function onMessage(ev) {
       ready = true;
       names = msg.names;
       showActivity(msg);
-      setStatus(
-        `ready: ${count(names.length)} attributes of nixpkgs ${config.rev.slice(0, SHORT_COMMIT)}`,
-      );
+      setStatus(`ready: ${count(names.length)} attributes of nixpkgs `);
+      $("status").append(revisionLink());
       $("attr").disabled = false;
       $("run").disabled = false;
       $("attr").focus();
