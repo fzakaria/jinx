@@ -10,8 +10,16 @@
     />
     <link rel="canonical" href="https://jinx.dev/" />
     <link rel="icon" href="favicon.svg" />
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)" />
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#16181d"
+      media="(prefers-color-scheme: dark)"
+    />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="jinx" />
@@ -34,11 +42,34 @@
           <!-- The logo: a lambda between TypeScript's braces, the braces in
                the text colour and the lambda in the family's accent. The
                same shape is favicon.svg. -->
-          <svg class="logo" viewBox="0 0 44 32" width="36" height="26" aria-hidden="true">
-            <g fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3c-4 0-4.5 2.5-4.5 6v3c0 2-1 3.2-3 4 2 .8 3 2 3 4v3c0 3.5.5 6 4.5 6" stroke="currentColor" opacity=".6" />
-              <path d="M32 3c4 0 4.5 2.5 4.5 6v3c0 2 1 3.2 3 4-2 .8-3 2-3 4v3c0 3.5-.5 6-4.5 6" stroke="currentColor" opacity=".6" />
-              <path d="M16 5.5l11.5 21M22.4 17.2l-6.4 9.3" stroke="var(--accent)" stroke-width="3.2" />
+          <svg
+            class="logo"
+            viewBox="0 0 44 32"
+            width="36"
+            height="26"
+            aria-hidden="true"
+          >
+            <g
+              fill="none"
+              stroke-width="2.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M12 3c-4 0-4.5 2.5-4.5 6v3c0 2-1 3.2-3 4 2 .8 3 2 3 4v3c0 3.5.5 6 4.5 6"
+                stroke="currentColor"
+                opacity=".6"
+              />
+              <path
+                d="M32 3c4 0 4.5 2.5 4.5 6v3c0 2 1 3.2 3 4-2 .8-3 2-3 4v3c0 3.5-.5 6-4.5 6"
+                stroke="currentColor"
+                opacity=".6"
+              />
+              <path
+                d="M16 5.5l11.5 21M22.4 17.2l-6.4 9.3"
+                stroke="var(--accent)"
+                stroke-width="3.2"
+              />
             </g>
           </svg>
           jinx
@@ -47,20 +78,26 @@
       </h1>
       <nav class="site">
         <a href="." class="active">Playground</a>
-        <a href="nixpkgs/" title="real nixpkgs, evaluated in the tab">nixpkgs</a>
-        <a href="parity/" title="every nixpkgs attribute, jinx against Nix">Parity</a>
-        <a href="bench/">Benchmark</a>
+        <a href="nixpkgs/" title="real nixpkgs, evaluated in the tab"
+          >nixpkgs</a
+        >
+        <a href="parity/" title="every nixpkgs attribute, jinx against Nix"
+          >Parity</a
+        >
         <a href="docs/">Documentation</a>
         <a href="https://github.com/fzakaria/jinx">GitHub</a>
       </nav>
     </header>
 
     <p class="intro">
-      <strong class="lede">Derivations, computed in this tab.</strong> jinx reads Nix and writes
-      TypeScript that evaluates to the same thing. The Nix on the left becomes the TypeScript in the
-      middle, which runs here and prints its value on the right. A
-      <code>derivation</code> call produces the <code>.drv</code> Nix would:
-      <span class="claim">same ATerm, same hash, same store path, no nix binary anywhere.</span>
+      <strong class="lede">Derivations, computed in this tab.</strong> jinx
+      reads Nix and writes TypeScript that evaluates to the same thing. The Nix
+      on the left becomes the TypeScript in the middle, which runs here and
+      prints its value on the right. A <code>derivation</code> call produces the
+      <code>.drv</code> Nix would:
+      <span class="claim"
+        >same ATerm, same hash, same store path, no nix binary anywhere.</span
+      >
     </p>
 
     <div class="toolbar">
@@ -68,13 +105,26 @@
         Example
         <select id="examples" aria-label="examples"></select>
       </label>
-      <button id="compile" type="button" title="Nix to TypeScript, then evaluate">Compile</button>
-      <button id="evaluate" type="button" title="run the TypeScript pane as it is">Evaluate</button>
+      <button
+        id="compile"
+        type="button"
+        title="Nix to TypeScript, then evaluate"
+      >
+        Compile
+      </button>
+      <button
+        id="evaluate"
+        type="button"
+        title="run the TypeScript pane as it is"
+      >
+        Evaluate
+      </button>
       <span id="status" class="muted" aria-live="polite"></span>
     </div>
 
     <p class="muted hint">
-      The two panes are joined by the source map: the cursor in one highlights the same expression in the other.
+      The two panes are joined by the source map: the cursor in one highlights
+      the same expression in the other.
     </p>
 
     <main id="panes">
@@ -86,7 +136,10 @@
       <section class="pane" id="pane-ts">
         <h2>
           TypeScript
-          <label class="toggle" title="edit the TypeScript by hand; Nix edits stop overwriting it">
+          <label
+            class="toggle"
+            title="edit the TypeScript by hand; Nix edits stop overwriting it"
+          >
             <input type="checkbox" id="ts-edit" /> edit
           </label>
         </h2>
@@ -101,8 +154,16 @@
           </label>
         </h2>
         <div id="result">
-          <pre id="value" title="the value, as nix-instantiate --eval --strict prints it"></pre>
-          <h3 id="derivations-heading" title="every derivation the evaluation produced">Derivations</h3>
+          <pre
+            id="value"
+            title="the value, as nix-instantiate --eval --strict prints it"
+          ></pre>
+          <h3
+            id="derivations-heading"
+            title="every derivation the evaluation produced"
+          >
+            Derivations
+          </h3>
           <div id="derivations"></div>
         </div>
         <section id="log-section" hidden>
@@ -117,7 +178,18 @@
       <a href="https://fzakaria.com">Farid Zakaria</a>
       ·
       <a href="https://github.com/fzakaria/jinx/blob/main/LICENSE">MIT</a>
-      <div id="store" hidden><code id="store-path"></code></div>
+      ·
+      <a
+        href="bench/"
+        title="jinx against Nix on the same attributes, one jinx commit at a time"
+        >Benchmark</a
+      >
+      ·
+      <a
+        href="nixpkgs/stats/"
+        title="what evaluating every attribute of nixpkgs reads"
+        >Statistics</a
+      >
     </footer>
 
     <script type="module" src="js/app.js"></script>

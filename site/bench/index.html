@@ -10,8 +10,16 @@
     />
     <link rel="canonical" href="https://jinx.dev/bench/" />
     <link rel="icon" href="../favicon.svg" />
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)" />
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#16181d"
+      media="(prefers-color-scheme: dark)"
+    />
     <link rel="stylesheet" href="../style.css" />
     <link rel="stylesheet" href="bench.css" />
   </head>
@@ -22,11 +30,34 @@
           <!-- The logo: a lambda between TypeScript's braces, the braces in
                the text colour and the lambda in the family's accent. The
                same shape is favicon.svg. -->
-          <svg class="logo" viewBox="0 0 44 32" width="36" height="26" aria-hidden="true">
-            <g fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3c-4 0-4.5 2.5-4.5 6v3c0 2-1 3.2-3 4 2 .8 3 2 3 4v3c0 3.5.5 6 4.5 6" stroke="currentColor" opacity=".6" />
-              <path d="M32 3c4 0 4.5 2.5 4.5 6v3c0 2 1 3.2 3 4-2 .8-3 2-3 4v3c0 3.5-.5 6-4.5 6" stroke="currentColor" opacity=".6" />
-              <path d="M16 5.5l11.5 21M22.4 17.2l-6.4 9.3" stroke="var(--accent)" stroke-width="3.2" />
+          <svg
+            class="logo"
+            viewBox="0 0 44 32"
+            width="36"
+            height="26"
+            aria-hidden="true"
+          >
+            <g
+              fill="none"
+              stroke-width="2.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M12 3c-4 0-4.5 2.5-4.5 6v3c0 2-1 3.2-3 4 2 .8 3 2 3 4v3c0 3.5.5 6 4.5 6"
+                stroke="currentColor"
+                opacity=".6"
+              />
+              <path
+                d="M32 3c4 0 4.5 2.5 4.5 6v3c0 2 1 3.2 3 4-2 .8-3 2-3 4v3c0 3.5-.5 6-4.5 6"
+                stroke="currentColor"
+                opacity=".6"
+              />
+              <path
+                d="M16 5.5l11.5 21M22.4 17.2l-6.4 9.3"
+                stroke="var(--accent)"
+                stroke-width="3.2"
+              />
             </g>
           </svg>
           jinx
@@ -35,9 +66,12 @@
       </h1>
       <nav class="site">
         <a href="../">Playground</a>
-        <a href="../nixpkgs/" title="real nixpkgs, evaluated in the tab">nixpkgs</a>
-        <a href="../parity/" title="every nixpkgs attribute, jinx against Nix">Parity</a>
-        <a href="../bench/" class="active">Benchmark</a>
+        <a href="../nixpkgs/" title="real nixpkgs, evaluated in the tab"
+          >nixpkgs</a
+        >
+        <a href="../parity/" title="every nixpkgs attribute, jinx against Nix"
+          >Parity</a
+        >
         <a href="../docs/">Documentation</a>
         <a href="https://github.com/fzakaria/jinx">GitHub</a>
       </nav>
@@ -45,12 +79,16 @@
 
     <main>
       <p class="intro">
-        <strong class="lede">nix-instantiate and jinx, timed on the same evaluations.</strong>
+        <strong class="lede"
+          >nix-instantiate and jinx, timed on the same evaluations.</strong
+        >
         Each record is one run of
-        <a href="https://github.com/fzakaria/jinx/blob/main/tools/bench.ts">tools/bench.ts</a>,
-        the median of three. jinx runs cold, compiling as it goes, and warm, with the modules
-        compiled. <a href="../docs/performance">performance.md</a> has the probes and where the
-        time goes.
+        <a href="https://github.com/fzakaria/jinx/blob/main/tools/bench.ts"
+          >tools/bench.ts</a
+        >, the median of three. jinx runs cold, compiling as it goes, and warm,
+        with the modules compiled.
+        <a href="../docs/performance">performance.md</a> has the probes and
+        where the time goes.
       </p>
 
       <h2>Latest run</h2>
@@ -74,6 +112,18 @@
       <a href="https://fzakaria.com">Farid Zakaria</a>
       ·
       <a href="https://github.com/fzakaria/jinx/blob/main/LICENSE">MIT</a>
+      ·
+      <a
+        href="../bench/"
+        title="jinx against Nix on the same attributes, one jinx commit at a time"
+        >Benchmark</a
+      >
+      ·
+      <a
+        href="../nixpkgs/stats/"
+        title="what evaluating every attribute of nixpkgs reads"
+        >Statistics</a
+      >
     </footer>
 
     <script type="module" src="bench.js"></script>

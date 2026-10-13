@@ -23,6 +23,7 @@ const DEFAULT_SYSTEM = "x86_64-linux";
 const HASH_PARAM_ATTR = "attr";
 const MAX_SUGGESTIONS = 12;
 const MAX_LOG_LINES = 200;
+const SHORT_COMMIT = 7;
 const MILLIS_PRECISION = 0;
 const SECONDS_PRECISION = 1;
 const KIB = 1024;
@@ -76,11 +77,15 @@ function formatMillis(ms) {
 }
 
 function describeActivity(a) {
-  return `${a.modulesLoaded} modules, ${a.filesFetched} files, ${formatBytes(a.bytesFetched)}`;
+  return `${count(a.modulesLoaded)} modules loaded, ${count(a.filesFetched)} files fetched, ${formatBytes(a.bytesFetched)}`;
 }
 
+// The evaluation's own progress: modules are loaded as the Nix code
+// reaches them, from files the prefetch already fetched or, for the few
+// it did not, fetched then; `last` is the file fetched most recently.
 function showActivity(a) {
-  const last = a.last === undefined || a.last === "" ? "" : ` · ${a.last}`;
+  const last =
+    a.last === undefined || a.last === "" ? "" : ` · last fetched ${a.last}`;
   $("fetch-activity").textContent = `${describeActivity(a)}${last}`;
 }
 
@@ -451,7 +456,9 @@ function onMessage(ev) {
       ready = true;
       names = msg.names;
       showActivity(msg);
-      setStatus(`ready: ${names.length} attributes`);
+      setStatus(
+        `ready: ${count(names.length)} attributes of nixpkgs ${config.rev.slice(0, SHORT_COMMIT)}`,
+      );
       $("attr").disabled = false;
       $("run").disabled = false;
       $("attr").focus();
@@ -508,7 +515,6 @@ async function start() {
   positionsUrl = absolute(
     config.positionsUrl ?? `${config.treeUrl}/${POSITIONS_DIR}`,
   );
-  $("rev").textContent = ` · nixpkgs ${config.rev.slice(0, 7)}`;
 
   worker = new Worker(WORKER_URL, { type: "module" });
   worker.onmessage = onMessage;
