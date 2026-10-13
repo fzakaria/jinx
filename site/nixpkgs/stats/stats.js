@@ -6,6 +6,7 @@ const CONFIG_URL = "../config.json";
 const STATS_FILE = ".jinx/stats.json";
 const UNREAD_FILE = ".jinx/unread.json";
 const NIXPKGS_BLOB_URL = "https://github.com/NixOS/nixpkgs/blob/";
+const JINX_NIXPKGS_TREE = "https://github.com/fzakaria/jinx-nixpkgs/tree";
 const TREE_PREFIX = "t/";
 const SRC_PREFIX = "s/";
 const MODULE_SUFFIX = ".ts";
@@ -111,7 +112,7 @@ function tile(label, value, note) {
   ]);
 }
 
-function render(stats, treeUrl) {
+function render(stats, treeUrl, treeCommit) {
   rev = stats.rev;
   const a = stats.attributes;
   const f = stats.files;
@@ -120,6 +121,14 @@ function render(stats, treeUrl) {
     html("a", { href: `https://github.com/NixOS/nixpkgs/tree/${rev}` }, [
       html("code", {}, [rev.slice(0, SHORT_COMMIT)]),
     ]),
+    ...(treeCommit
+      ? [
+          ", compiled in jinx-nixpkgs ",
+          html("a", { href: `${JINX_NIXPKGS_TREE}/${treeCommit}` }, [
+            html("code", {}, [treeCommit.slice(0, SHORT_COMMIT)]),
+          ]),
+        ]
+      : []),
     ` · ${count(a.withList)} of ${count(a.total)} top-level attributes evaluated to a derivation path on x86_64-linux, their files recorded · the rest are not derivations or do not evaluate: unfree, broken, or for another platform`,
   );
   $("tiles").replaceChildren(
@@ -278,7 +287,7 @@ async function start() {
     if (!statsRes.ok) {
       throw new Error(`${STATS_FILE}: HTTP ${statsRes.status}`);
     }
-    render(await statsRes.json(), treeUrl);
+    render(await statsRes.json(), treeUrl, config.treeCommit ?? null);
     $("status").textContent = "";
   } catch (e) {
     $("status").textContent = `could not load the statistics: ${e.message}`;

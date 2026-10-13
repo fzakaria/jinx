@@ -46,6 +46,7 @@ if (treeCommit === undefined || rev === undefined) {
 const treeUrl = `${RAW}/${TREE_REPO}/${treeCommit}`;
 const config = {
   treeUrl,
+  treeCommit,
   treeIndexUrl: `${treeUrl}/${TREE_INDEX}`,
   srcUrl: `${RAW}/${NIXPKGS_REPO}/${rev}`,
   srcIndexUrl: `${treeUrl}/${SRC_INDEX}`,

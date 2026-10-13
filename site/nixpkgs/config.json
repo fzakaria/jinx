@@ -1,5 +1,6 @@
 {
   "treeUrl": "https://raw.githubusercontent.com/fzakaria/jinx-nixpkgs/86368c70aeaad3969e7044fdd238818cd8e38cf3",
+  "treeCommit": "86368c70aeaad3969e7044fdd238818cd8e38cf3",
   "treeIndexUrl": "https://raw.githubusercontent.com/fzakaria/jinx-nixpkgs/86368c70aeaad3969e7044fdd238818cd8e38cf3/.jinx/tree-index.json",
   "srcUrl": "https://raw.githubusercontent.com/NixOS/nixpkgs/6510408d147d8c5e6d76043e899e9251756f6a75",
   "srcIndexUrl": "https://raw.githubusercontent.com/fzakaria/jinx-nixpkgs/86368c70aeaad3969e7044fdd238818cd8e38cf3/.jinx/src-index.json",

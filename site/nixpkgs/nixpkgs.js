@@ -32,6 +32,7 @@ const MIB = KIB * KIB;
 const TRYNIX_URL = "https://trynix.dev/";
 const NIXPKGS_GITHUB = "https://github.com/NixOS/nixpkgs/blob";
 const NIXPKGS_TREE = "https://github.com/NixOS/nixpkgs/tree";
+const JINX_NIXPKGS_TREE = "https://github.com/fzakaria/jinx-nixpkgs/tree";
 const SHOW_TS = "show TypeScript";
 // The compiled module is shown in the playground's editor, read only.
 const EDITORS_URL = "../js/editors.js";
@@ -142,6 +143,15 @@ function revisionLink() {
   a.href = `${NIXPKGS_TREE}/${config.rev}`;
   a.textContent = config.rev.slice(0, SHORT_COMMIT);
   a.title = "the nixpkgs commit this tree was compiled from";
+  return a;
+}
+
+// The jinx-nixpkgs commit the page evaluates, as a link to it.
+function treeLink() {
+  const a = document.createElement("a");
+  a.href = `${JINX_NIXPKGS_TREE}/${config.treeCommit}`;
+  a.textContent = config.treeCommit.slice(0, SHORT_COMMIT);
+  a.title = "the compiled tree this page evaluates";
   return a;
 }
 
@@ -468,6 +478,9 @@ function onMessage(ev) {
       showActivity(msg);
       setStatus(`ready: ${count(names.length)} attributes of nixpkgs `);
       $("status").append(revisionLink());
+      if (config.treeCommit) {
+        $("status").append(", compiled in jinx-nixpkgs ", treeLink());
+      }
       $("attr").disabled = false;
       $("run").disabled = false;
       $("attr").focus();
