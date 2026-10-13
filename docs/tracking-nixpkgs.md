@@ -38,7 +38,10 @@ does the same.
 - `.jinx/names.json`, `.jinx/hot.json`, `.jinx/files/` and
   `.jinx/positions/`: what the [nixpkgs page](../nixpkgs/) reads to
   evaluate the tree in a browser, fetching files as it needs them, and
-  where every top-level attribute is defined.
+  where every top-level attribute is defined;
+- `.jinx/stats.json` and `.jinx/unread.json`: what the file lists say
+  about nixpkgs as a whole, shown on the
+  [statistics page](../nixpkgs/stats/).
 
 Each revision is also a regression test for the compiler: a jinx change
 that lowers the parity count on any revision is a regression, and the

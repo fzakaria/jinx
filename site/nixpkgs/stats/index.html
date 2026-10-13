@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>nixpkgs statistics · jinx</title>
+    <meta
+      name="description"
+      content="What evaluating every attribute of nixpkgs reads: the files no attribute needs, the files most attributes share, how many files an attribute needs, and where the attributes are defined."
+    />
+    <link rel="canonical" href="https://jinx.dev/nixpkgs/stats/" />
+    <link rel="icon" href="../../favicon.svg" />
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#16181d"
+      media="(prefers-color-scheme: dark)"
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="jinx" />
+    <meta property="og:title" content="jinx: what evaluating nixpkgs reads" />
+    <meta
+      property="og:description"
+      content="Every top-level attribute of nixpkgs evaluated with its files recorded: which of nixpkgs' 45,000 Nix files nothing reads, which ones everything reads, and where packages are defined."
+    />
+    <meta property="og:url" content="https://jinx.dev/nixpkgs/stats/" />
+
+    <link rel="stylesheet" href="../../style.css" />
+    <link rel="stylesheet" href="stats.css" />
+  </head>
+  <body>
+    <header class="site">
+      <h1>
+        <a href="../../">
+          <!-- The logo: a lambda between TypeScript's braces, the braces in
+               the text colour and the lambda in the family's accent. The
+               same shape is favicon.svg. -->
+          <svg
+            class="logo"
+            viewBox="0 0 44 32"
+            width="36"
+            height="26"
+            aria-hidden="true"
+          >
+            <g
+              fill="none"
+              stroke-width="2.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M12 3c-4 0-4.5 2.5-4.5 6v3c0 2-1 3.2-3 4 2 .8 3 2 3 4v3c0 3.5.5 6 4.5 6"
+                stroke="currentColor"
+                opacity=".6"
+              />
+              <path
+                d="M32 3c4 0 4.5 2.5 4.5 6v3c0 2 1 3.2 3 4-2 .8-3 2-3 4v3c0 3.5-.5 6-4.5 6"
+                stroke="currentColor"
+                opacity=".6"
+              />
+              <path
+                d="M16 5.5l11.5 21M22.4 17.2l-6.4 9.3"
+                stroke="var(--accent)"
+                stroke-width="3.2"
+              />
+            </g>
+          </svg>
+          jinx
+        </a>
+        <span class="tagline muted">Nix, transpiled to TypeScript</span>
+      </h1>
+      <nav class="site">
+        <a href="../../">Playground</a>
+        <a href="../" title="real nixpkgs, evaluated in the tab" class="active"
+          >nixpkgs</a
+        >
+        <a
+          href="../../parity/"
+          title="every nixpkgs attribute, jinx against Nix"
+          >Parity</a
+        >
+        <a href="../../bench/">Benchmark</a>
+        <a href="../../docs/">Documentation</a>
+        <a href="https://github.com/fzakaria/jinx">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <p class="intro">
+        <strong class="lede">What evaluating nixpkgs reads.</strong>
+        Every top-level attribute of nixpkgs was evaluated to its derivation
+        path with the files it read recorded (<a
+          href="https://github.com/fzakaria/jinx/blob/main/tools/attr-files.ts"
+          >tools/attr-files.ts</a
+        >), which is what the <a href="../">nixpkgs page</a> fetches ahead of an
+        evaluation. Put together, the lists say which of nixpkgs' Nix files
+        nothing reads, which ones everything reads, and how much of nixpkgs one
+        package needs.
+      </p>
+
+      <p id="status" class="muted" aria-live="polite">Loading…</p>
+
+      <section id="headline" hidden>
+        <p id="meta" class="muted"></p>
+        <div id="tiles" class="tiles"></div>
+      </section>
+
+      <section id="unread-section" hidden>
+        <h2>Files no attribute reads</h2>
+        <p>
+          A <code>.nix</code> file counts as read when some attribute loaded its
+          module or read it as a file. What is left unread is mostly files for
+          other platforms, <code>tests.nix</code> files a derivation path never
+          forces, NixOS tests and modules, and the packages whose evaluation
+          failed in the recording, which are not counted among the readers. The
+          full list is <a id="unread-link" href="#">unread.json</a>.
+        </p>
+        <table id="unread-table"></table>
+      </section>
+
+      <section id="shared-section" hidden>
+        <h2>Files most attributes read</h2>
+        <p id="base"></p>
+        <p>
+          Beyond that base, the files most attributes read, with how many of the
+          attributes read each. The GTK and font stack is what about a third of
+          nixpkgs reaches.
+        </p>
+        <table id="shared-table"></table>
+        <p>How many attributes read a file, over every file beyond the base:</p>
+        <table id="buckets-table"></table>
+        <details>
+          <summary id="common-summary"></summary>
+          <table id="common-table"></table>
+        </details>
+      </section>
+
+      <section id="per-attribute-section" hidden>
+        <h2>Files per attribute</h2>
+        <p id="quantiles"></p>
+        <p>The attributes that need the most files beyond the base:</p>
+        <table id="attributes-table"></table>
+      </section>
+
+      <section id="kinds-section" hidden>
+        <h2>What is read besides Nix</h2>
+        <p>
+          Source files read by at least one attribute, by extension: a patch or
+          a script named in a derivation is hashed into its store path.
+        </p>
+        <table id="kinds-table"></table>
+      </section>
+
+      <section id="positions-section" hidden>
+        <h2>Where attributes are defined</h2>
+        <p id="positions-intro"></p>
+        <table id="positions-dirs-table"></table>
+        <p>The files that define the most top-level attributes:</p>
+        <table id="positions-files-table"></table>
+      </section>
+    </main>
+
+    <footer class="site muted">
+      Made with ❤️ by <a href="https://fzakaria.com">Farid Zakaria</a> ·
+      <a href="https://github.com/fzakaria/jinx/blob/main/LICENSE">MIT</a>
+    </footer>
+
+    <script type="module" src="stats.js"></script>
+  </body>
+</html>

@@ -82,7 +82,7 @@ printf 'nixpkgs\n' > "$out/.gitignore"
 
 # The indexes let a reader that fetches one file at a time (the site's
 # nixpkgs page) answer readdir and stat without a round trip per path.
-run "$here/tools/index-tree.ts" "$out" "$out/.jinx/tree-index.json" --skip .git --skip nixpkgs
+run "$here/tools/index-tree.ts" "$out" "$out/.jinx/tree-index.json" --skip nixpkgs --modules
 run "$here/tools/index-tree.ts" "$src" "$out/.jinx/src-index.json"
 
 # The files `hello` reads, which the site's nixpkgs page fetches ahead,
@@ -132,6 +132,9 @@ rm -f "$nixosExpr"
 run "$here/tools/pack-files.ts" "$out"
 rm -rf "$out/.jinx/files-raw"
 fi
+
+# What the lists say about nixpkgs as a whole, for the site's stats page.
+run "$here/tools/nixpkgs-stats.ts" "$out"
 
 # The parity report for this revision, and the README written from it.
 if [ -n "$parity" ]; then

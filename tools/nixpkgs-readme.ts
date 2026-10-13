@@ -179,9 +179,11 @@ Nix. \`.jinx/config.json\` names the revision; \`.jinx/runtime/\` is the jinx
 runtime the modules import, so the tree stands alone. \`.jinx/tree-index.json\`
 and \`.jinx/src-index.json\` list every path of the tree and of the nixpkgs
 source, \`.jinx/hot.json\` the files evaluating \`hello\` reads,
-\`.jinx/names.json\` the top-level attribute names, and \`.jinx/files/\`
+\`.jinx/names.json\` the top-level attribute names, \`.jinx/files/\`
 what each attribute reads beyond that, for a reader that fetches files
-one at a time (jinx.dev's nixpkgs page).
+one at a time (jinx.dev's nixpkgs page), \`.jinx/positions/\` where each
+attribute is defined, and \`.jinx/stats.json\` what the lists say about
+nixpkgs as a whole (the site's statistics page).
 
 The Nix source tree is not in this repository. Put a checkout of the
 revision in \`.jinx/config.json\` at \`./nixpkgs\` (a symlink is fine); the
