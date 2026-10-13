@@ -3,11 +3,11 @@
     "jinx-nixpkgs": {
       "flake": false,
       "locked": {
-        "lastModified": 1791851720,
-        "narHash": "sha256-J3yWHs1m0CYJoNorzVx3AJTRJIkusgQbix8MoCkVKDA=",
+        "lastModified": 1791856344,
+        "narHash": "sha256-e7Cr+iLETGm1WcXjUWz329bXVvAz0Z9DjHwg01IWY70=",
         "owner": "fzakaria",
         "repo": "jinx-nixpkgs",
-        "rev": "d46eb60277b12c93c3590c554068b729ae0c3b7f",
+        "rev": "86368c70aeaad3969e7044fdd238818cd8e38cf3",
         "type": "github"
       },
       "original": {
