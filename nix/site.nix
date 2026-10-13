@@ -38,6 +38,8 @@ let
   };
   localConfig = builtins.toJSON {
     treeUrl = "../tree";
+    # The jinx-nixpkgs commit, when the tree is a flake input with one.
+    treeCommit = tree.rev or null;
     treeIndexUrl = "../tree/.jinx/tree-index.json";
     srcUrl = "../src";
     srcIndexUrl = "../tree/.jinx/src-index.json";
@@ -151,12 +153,19 @@ pkgs.runCommand "jinx-site"
             --types node --typeRoots ${import ./types-node.nix { inherit pkgs; }}/node_modules/@types
           node --disable-warning=ExperimentalWarning tools/pack-dts.ts "$dts" $out/js/jinx-dts.json
 
-          # The output path is known before building, so the page and the docs can
-            # name the very store path they are served out of (a benign
-            # self-reference, same as trynix and the multiverse).
+          # The output path is known before building, so every page can name
+            # the very store path it is served out of (a benign self-reference,
+            # same as trynix and the multiverse): the docs through their stamped
+            # footer line, the other pages through the hidden line in theirs.
             substituteInPlace $out/js/app.js --replace-fail "__STORE_PATH__" "$out"
             for f in $out/docs/*.html; do
               substituteInPlace "$f" --replace-fail "__STORE_PATH__" "$out"
+            done
+            for f in $out/index.html $out/nixpkgs/index.html $out/nixpkgs/stats/index.html \
+                     $out/parity/index.html $out/bench/index.html; do
+              substituteInPlace "$f" --replace-fail \
+                '<div id="store" hidden><code id="store-path"></code></div>' \
+                "<div id=\"store\"><code id=\"store-path\">$out</code></div>"
             done
     ''
     + pkgs.lib.optionalString (tree != null) ''
