@@ -419,6 +419,10 @@ function run() {
   hideSuggestions();
   running = true;
   writeHash(attr);
+  // The previous result is another attribute's; only the status and the
+  // source line describe this run until its result arrives.
+  $("result-card").hidden = true;
+  $("error").hidden = true;
   setStatus(`evaluating pkgs.${attr}…`);
   $("run").disabled = true;
   worker.postMessage({ type: "eval", attr });

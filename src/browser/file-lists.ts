@@ -26,7 +26,8 @@ export class FileLists {
   private readonly srcRoot: string;
   private readonly paths: readonly string[];
   private readonly shards = new Map<string, Promise<Shard | null>>();
-  private common: Promise<void> | null = null;
+  private commonFetched = false;
+  private common: Promise<readonly number[]> | null = null;
 
   // `treeRoot` and `srcRoot` are where the two indexes are mounted.
   constructor(
@@ -76,21 +77,21 @@ export class FileLists {
     await prefetch(paths, PREFETCH_CONCURRENCY, onProgress);
   }
 
-  // The common files, fetched once, before the first attribute's list.
-  private prefetchCommon(onProgress: Progress): Promise<void> {
+  // The common ids, read once; they are fetched with the first
+  // attribute's own list, as one batch.
+  private commonIds(): Promise<readonly number[]> {
     if (this.common === null) {
       this.common = this.fetchJson<number[]>(
         `${this.filesUrl}/${COMMON_FILE}`,
-      ).then((ids) =>
-        ids === null ? undefined : this.prefetchIds(ids, onProgress),
-      );
+      ).then((ids) => ids ?? []);
     }
     return this.common;
   }
 
-  // Fetch what evaluating `name` reads, in parallel: the common files
-  // and then its own. A dotted attribute path uses its first component.
-  // A name with no list fetches nothing; the evaluation reads as it goes.
+  // Fetch what evaluating `name` reads, in parallel: the common files,
+  // the first time, and its own, as one batch with one progress count.
+  // A dotted attribute path uses its first component. A name with no
+  // list fetches nothing; the evaluation reads as it goes.
   async prefetchFor(name: string, onProgress: Progress): Promise<void> {
     const top = name.split(".")[0]!;
     const key = shardOf(top);
@@ -103,7 +104,8 @@ export class FileLists {
     if (ids === undefined) {
       return;
     }
-    await this.prefetchCommon(onProgress);
-    await this.prefetchIds(ids, onProgress);
+    const common = this.commonFetched ? [] : await this.commonIds();
+    this.commonFetched = true;
+    await this.prefetchIds([...common, ...ids], onProgress);
   }
 }
