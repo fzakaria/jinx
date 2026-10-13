@@ -27,6 +27,7 @@ const RAW_DIR = ".jinx/files-raw";
 const TREE_INDEX = ".jinx/tree-index.json";
 const SRC_INDEX = ".jinx/src-index.json";
 const COMMON_SHARE = 0.3;
+const COMMON_USES_FILE = "common-uses.json";
 
 interface Recorded {
   readonly tree: readonly string[];
@@ -92,6 +93,13 @@ writeFileSync(
   join(dir, COMMON_FILE),
   JSON.stringify([...common].sort((a, b) => a - b)) + "\n",
 );
+// How many attributes read each common file, which the lists no longer
+// say; tools/nixpkgs-stats.ts reports them.
+const commonUses: Record<string, number> = {};
+for (const id of [...common].sort((a, b) => a - b)) {
+  commonUses[String(id)] = uses.get(id) ?? 0;
+}
+writeFileSync(join(dir, COMMON_USES_FILE), JSON.stringify(commonUses) + "\n");
 let kept = 0;
 for (const [file, packed] of shards) {
   const out: Record<string, number[]> = {};
